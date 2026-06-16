@@ -218,6 +218,38 @@ export default function AdminPanelPage() {
                   <p className="text-xs text-gray-500 mt-2">
                     💡 Використовуй <b>**жирний текст**</b> або <b>## Заголовок</b> для форматування.
                   </p>
+                  {/* БЛОК ПРИКРІПЛЕНИХ МАТЕРІАЛІВ */}
+                  {(activity.image_urls?.length > 0 || activity.file_urls?.length > 0) && (
+                    <div className="bg-white p-4 rounded-xl border border-gray-200 mt-4">
+                      <h4 className="font-bold text-gray-700 mb-2 text-sm uppercase">📎 Прикріплені матеріали:</h4>
+                      
+                      {activity.image_urls?.length > 0 && (
+                        <div className="mb-3">
+                          <span className="text-xs text-gray-500 font-bold block mb-1">ФОТО:</span>
+                          <div className="flex gap-2 flex-wrap">
+                            {activity.image_urls.map((url: string, i: number) => (
+                              <a key={i} href={url} target="_blank" className="text-[#44bdf3] hover:underline text-sm font-medium">
+                                🖼️ Переглянути фото {i + 1}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {activity.file_urls?.length > 0 && (
+                        <div>
+                          <span className="text-xs text-gray-500 font-bold block mb-1">ДОКУМЕНТИ:</span>
+                          <div className="flex gap-2 flex-wrap">
+                            {activity.file_urls.map((url: string, i: number) => (
+                              <a key={i} href={url} target="_blank" className="text-green-600 hover:underline text-sm font-medium">
+                                📄 Переглянути файл {i + 1}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-sm font-bold text-gray-500">

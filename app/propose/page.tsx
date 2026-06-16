@@ -72,6 +72,7 @@ export default function ProposePage() {
     }
 
     try {
+      // 1. Завантаження картинок у Supabase (залишаємо як було)
       const imageUrls: string[] = [];
       for (const file of selectedImages) {
         const fileExt = file.name.split('.').pop();
@@ -83,22 +84,35 @@ export default function ProposePage() {
         }
       }
 
+      // 2. Завантаження документів на Google Диск (НОВА ЛОГІКА)
       const fileUrls: string[] = [];
       for (const file of selectedFiles) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `documents/${Date.now()}-${Math.random()}.${fileExt}`;
-        const { error } = await supabase.storage.from('activity-media').upload(fileName, file);
-        if (!error) {
-          const { data } = supabase.storage.from('activity-media').getPublicUrl(fileName);
-          fileUrls.push(data.publicUrl);
+        const fileFormData = new FormData();
+        fileFormData.append('file', file);
+
+        // Звертаємось до нашого API, який ми створимо для Диску
+        const uploadResponse = await fetch('/api/upload-to-drive', {
+          method: 'POST',
+          body: fileFormData,
+        });
+
+        const uploadData = await uploadResponse.json();
+
+        // Якщо сервер відповів успішно і повернув лінк, додаємо його в масив
+        if (uploadResponse.ok && uploadData.url) {
+          fileUrls.push(uploadData.url);
+        } else {
+          console.error("Помилка завантаження файлу на Google Диск:", uploadData.error);
         }
       }
 
+      // 3. Формування локацій
       let finalLocations = [...locationIds.filter(id => id !== 'other')];
       if (locationIds.includes('other') && customLocation.trim() !== '') {
         finalLocations.push(customLocation.trim());
       }
 
+      // 4. Запис усіх даних гри у базу даних Supabase
       const { error } = await supabase.from('activities').insert({
         title,
         author,
@@ -114,11 +128,11 @@ export default function ProposePage() {
         animators_max: animatorsMax ? parseInt(animatorsMax) : null,
         preparation_time: prepTime ? parseInt(prepTime) : null,
         has_equipment: hasEquipment,
-        equipment: hasEquipment ? equipment : null, // Записуємо реквізит, тільки якщо галочка стоїть
+        equipment: hasEquipment ? equipment : null,
         short_description: shortDescription,
         full_content: fullContent,
         image_urls: imageUrls,
-        file_urls: fileUrls,
+        file_urls: fileUrls, // Записуємо масив лінків з Google Диску
         status: 'pending'
       });
 
@@ -131,7 +145,7 @@ export default function ProposePage() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+};
 
   if (isSuccess) {
     return (
