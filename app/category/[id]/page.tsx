@@ -180,17 +180,17 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
         <aside className="w-full lg:w-1/4 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-fit">
           <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">Фільтри пошуку</h2>
           <div className="space-y-4 text-gray-600">
-            
+
             {/* Фільтр за назвою (ПОШУК) */}
             <div className="space-y-1 pb-2 border-b border-gray-100">
               <label className="block text-sm font-bold text-gray-700">🔍 Пошук за назвою</label>
-              <input type="text" placeholder="Введіть назву гри..." value={filterInputs.searchTitle} onChange={e => setFilterInputs({...filterInputs, searchTitle: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              <input type="text" placeholder="Введіть назву гри..." value={filterInputs.searchTitle} onChange={e => setFilterInputs({ ...filterInputs, searchTitle: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
             {/* Фільтр локації */}
             <div className="space-y-1 pt-2">
               <label className="block text-sm font-bold text-gray-700">📍 Локація</label>
-              <select value={filterInputs.location} onChange={e => setFilterInputs({...filterInputs, location: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
+              <select value={filterInputs.location} onChange={e => setFilterInputs({ ...filterInputs, location: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
                 <option value="any">Будь-де (Всі локації)</option>
                 <option value="indoor">В приміщенні</option>
                 <option value="outdoor">Надворі</option>
@@ -201,31 +201,31 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
             {/* Фільтр віку */}
             <div className="space-y-1">
               <label className="block text-sm font-bold text-gray-700">🎂 Вік дитини (років)</label>
-              <input type="number" placeholder="Наприклад: 10" value={filterInputs.age} onChange={e => setFilterInputs({...filterInputs, age: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              <input type="number" placeholder="Наприклад: 10" value={filterInputs.age} onChange={e => setFilterInputs({ ...filterInputs, age: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
             {/* Фільтр тривалості */}
             <div className="space-y-1">
               <label className="block text-sm font-bold text-gray-700">⏳ Скільки маєте часу (хв)</label>
-              <input type="number" placeholder="Наприклад: 45" value={filterInputs.duration} onChange={e => setFilterInputs({...filterInputs, duration: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              <input type="number" placeholder="Наприклад: 45" value={filterInputs.duration} onChange={e => setFilterInputs({ ...filterInputs, duration: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
             {/* Фільтр кількості учасників */}
             <div className="space-y-1">
               <label className="block text-sm font-bold text-gray-700">👥 Кількість учасників</label>
-              <input type="number" placeholder="Наприклад: 25" value={filterInputs.participants} onChange={e => setFilterInputs({...filterInputs, participants: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              <input type="number" placeholder="Наприклад: 25" value={filterInputs.participants} onChange={e => setFilterInputs({ ...filterInputs, participants: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
             {/* Фільтр кількості аніматорів */}
             <div className="space-y-1">
               <label className="block text-sm font-bold text-gray-700">🧑‍💼 Скільки є аніматорів</label>
-              <input type="number" placeholder="Наприклад: 3" value={filterInputs.animators} onChange={e => setFilterInputs({...filterInputs, animators: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              <input type="number" placeholder="Наприклад: 3" value={filterInputs.animators} onChange={e => setFilterInputs({ ...filterInputs, animators: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
             {/* Трьохпозиційний перемикач реквізиту */}
             <div className="space-y-1 pt-1">
               <label className="block text-sm font-bold text-gray-700">🎒 Наявність реквізиту</label>
-              <select value={filterInputs.equipmentStatus} onChange={e => setFilterInputs({...filterInputs, equipmentStatus: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
+              <select value={filterInputs.equipmentStatus} onChange={e => setFilterInputs({ ...filterInputs, equipmentStatus: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
                 <option value="any">Не має значення</option>
                 <option value="yes">Тільки з реквізитом</option>
                 <option value="no">Без реквізиту</option>
@@ -271,9 +271,9 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               <div className="flex justify-between items-start">
                 <h3 className="text-2xl font-bold text-gray-900">{activity.title}</h3>
 
-                {/* Якщо в базі є локація, показуємо першу з них */}
+                {/* Локація */}
                 {activity.location && activity.location.length > 0 && (
-                  <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase">
+                  <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase shrink-0 ml-4">
                     {activity.location[0] === 'outdoor' ? 'Надворі' :
                       activity.location[0] === 'indoor' ? 'Приміщення' :
                         activity.location[0] === 'water' ? 'Біля води' : activity.location[0]}
@@ -283,18 +283,48 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
               <p className="text-gray-600 leading-relaxed">{activity.short_description}</p>
 
-              <div className="flex flex-wrap gap-3 mt-2">
-                {/* Відображаємо вік тільки якщо він заданий */}
+              {/* РОЗШИРЕНИЙ БЛОК ЗІ ЗНАЧКАМИ */}
+              <div className="flex flex-wrap gap-2 mt-2">
+                
+                {/* 1. Вік */}
                 {(activity.age_min || activity.age_max) && (
-                  <span className="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1">
-                    🎂 {activity.age_min || 0}-{activity.age_max || '18+'} років
+                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                    🎂 Вік: {activity.age_min || 0}-{activity.age_max || '18+'} р.
                   </span>
                 )}
 
-                {/* Відображаємо тривалість діапазоном */}
+                {/* 2. Час на гру */}
                 {(activity.duration_min || activity.duration_max) && (
-                  <span className="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1">
-                    ⏳ {activity.duration_min || 0}-{activity.duration_max || '...'} хв
+                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                    ⏳ Гра: {activity.duration_min || 0}-{activity.duration_max || '...'} хв
+                  </span>
+                )}
+
+                {/* 3. Час на підготовку (ВИПРАВЛЕНО) */}
+                {activity.preparation_time !== null && activity.preparation_time !== undefined && (
+                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                    🛠 Підготовка: {activity.preparation_time} хв
+                  </span>
+                )}
+
+                {/* 4. Кількість учасників */}
+                {(activity.participants_min || activity.participants_max) && (
+                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                    👥 Учасники: {activity.participants_min || 1}-{activity.participants_max || '∞'}
+                  </span>
+                )}
+
+                {/* 5. Потрібно аніматорів */}
+                {(activity.animators_min || activity.animators_max) && (
+                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                    🧑‍💼 Аніматори: {activity.animators_min || 1}-{activity.animators_max || '...'}
+                  </span>
+                )}
+
+                {/* 6. Наявність реквізиту */}
+                {activity.has_equipment && (
+                  <span className="bg-pink-50 text-pink-600 border border-pink-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                    🎒 Є реквізит
                   </span>
                 )}
               </div>
