@@ -13,12 +13,12 @@ export async function POST(request: Request) {
 
     // 1. Авторизація через OAuth2 (тепер ти вантажиш ВІД СВОГО ІМЕНІ)
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
+      process.env.GOOGLE_CLIENT_ID as string,
+      process.env.GOOGLE_CLIENT_SECRET as string
     );
 
     oauth2Client.setCredentials({
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN as string,
     });
 
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     // 3. Метадані (назва файлу та в яку папку покласти)
     const fileMetadata = {
       name: file.name,
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
+      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID as string], // 🟢 Кажемо TypeScript, що це точно текст
     };
 
     const media = {
