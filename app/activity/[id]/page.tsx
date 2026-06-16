@@ -2,7 +2,9 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import ReactMarkdown from "react-markdown";
 
 const categoriesMap: Record<string, string> = {
   "vechory": "Вечори",
@@ -21,11 +23,15 @@ const locationsMap: Record<string, string> = {
 
 export default function ActivityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [activity, setActivity] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Стан для відображення статусу копіювання посилання
   const [isCopied, setIsCopied] = useState(false);
+
+  // СТАНИ ДЛЯ ВЛАСНОГО ВІКНА ВВОДУ ПАРОЛЯ
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
 
   useEffect(() => {
     async function fetchActivity() {
@@ -41,54 +47,130 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
     fetchActivity();
   }, [id]);
 
-  // Функція для копіювання посилання в буфер обміну
   const handleShare = () => {
     if (typeof window !== "undefined") {
       navigator.clipboard.writeText(window.location.href);
       setIsCopied(true);
-      // Через 2 секунди повертаємо початковий стан кнопки
       setTimeout(() => setIsCopied(false), 2000);
     }
+  };
+
+  // 1. Функція просто відкриває наше віконце
+  const handleEditClick = () => {
+    setShowPasswordPrompt(true);
+  };
+
+  // 2. Функція, яка спрацьовує при натисканні "Підтвердити" у нашому віконці
+  const submitEdit = async () => {
+    if (passwordInput === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
+      const { error } = await supabase
+        .from('activities')
+        .update({ status: 'editing' })
+        .eq('id', id);
+
+      if (!error) {
+        alert("✅ Активність відправлено на доопрацювання! Переходимо в Адмін-панель...");
+        router.push('/admin-panel');
+      } else {
+        alert("❌ Помилка з'єднання з базою.");
+      }
+    } else {
+      alert("❌ Невірний пароль! Доступ заборонено.");
+    }
+    
+    // Закриваємо віконце та очищаємо поле вводу
+    setShowPasswordPrompt(false);
+    setPasswordInput("");
   };
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center text-xl font-bold">Завантаження...</div>;
 
   return (
-    <main className="min-h-screen bg-gray-50 font-sans flex flex-col">
+    <main className="min-h-screen bg-gray-50 font-sans flex flex-col relative">
+      
+      {/* --- НАШЕ КАСТОМНЕ ВІКОНЦЕ ДЛЯ ПАРОЛЯ --- */}
+      {showPasswordPrompt && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full transform transition-all">
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Редагування</h3>
+            <p className="text-gray-600 mb-6">🔑 Введіть пароль модератора для доступу до зміни гри:</p>
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6 focus:outline-none focus:ring-2 focus:ring-[#FDB8D3] text-center text-xl tracking-widest"
+              placeholder="Пароль..."
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowPasswordPrompt(false);
+                  setPasswordInput("");
+                }}
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Скасувати
+              </button>
+              <button
+                onClick={submitEdit}
+                className="flex-1 bg-[#FDB8D3] text-white font-bold py-3 rounded-xl hover:bg-[#f9a8c8] transition-colors shadow-sm"
+              >
+                Увійти
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --------------------------------------- */}
+
       <div className="flex-grow">
         
-        {/* Шапка з кнопками Назад та Поділитися */}
-        <div className="bg-white border-b border-gray-200 p-6 sticky top-0 z-50">
-          <div className="max-w-4xl mx-auto flex justify-between items-center">
-            <button onClick={() => window.history.back()} className="text-gray-500 hover:text-[#FDB8D3] font-bold text-lg transition-colors">
+        {/* Шапка */}
+        <div className="bg-white border-b border-gray-200 p-6 sticky top-0 z-50 shadow-sm">
+          <div className="max-w-4xl mx-auto flex justify-between items-center gap-4">
+            <button onClick={() => window.history.back()} className="text-gray-500 hover:text-[#FDB8D3] font-bold text-lg transition-colors shrink-0">
               ← Назад
             </button>
             
-            {/* Кнопка Поділитися */}
-            <button 
-              onClick={handleShare}
-              className={`flex items-center gap-2 border font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-sm ${
-                isCopied 
-                  ? 'bg-green-50 border-green-200 text-green-600' 
-                  : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700'
-              }`}
-            >
-              {isCopied ? (
-                <>
-                  <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Скопійовано!</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 10.742l4.57 2.286M15.118 9.258l-4.57 2.286M20 5a3 3 0 11-6 0 3 3 0 016 0zm-12 7a3 3 0 11-6 0 3 3 0 016 0zm12 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span>Поділитися грою</span>
-                </>
-              )}
-            </button>
+            <div className="flex gap-2 flex-wrap justify-end">
+              {/* КНОПКА РЕДАГУВАННЯ (ОЛІВЕЦЬ) */}
+              <button 
+                onClick={handleEditClick}
+                title="Відправити на редагування"
+                className="flex items-center justify-center bg-gray-50 hover:bg-yellow-50 border border-gray-200 hover:border-yellow-300 text-gray-500 hover:text-yellow-600 font-bold w-11 h-11 rounded-xl transition-all shadow-sm"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+
+              {/* Кнопка Поділитися */}
+              <button 
+                onClick={handleShare}
+                className={`flex items-center gap-2 border font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-sm ${
+                  isCopied 
+                    ? 'bg-green-50 border-green-200 text-green-600' 
+                    : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700'
+                }`}
+              >
+                {isCopied ? (
+                  <>
+                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Скопійовано!</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 10.742l4.57 2.286M15.118 9.258l-4.57 2.286M20 5a3 3 0 11-6 0 3 3 0 016 0zm-12 7a3 3 0 11-6 0 3 3 0 016 0zm12 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="hidden sm:inline">Поділитися</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -96,7 +178,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
           <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-gray-100 mb-8">
             <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-6 leading-tight">{activity.title}</h1>
             
-            {/* КАТЕГОРІЇ ТА ЛОКАЦІЇ */}
             <div className="flex flex-wrap gap-2 mb-8">
               {activity.category_ids?.map((catId: string, index: number) => (
                 <span key={index} className="bg-[#FDB8D3]/10 text-[#FDB8D3] px-5 py-2 rounded-full font-bold text-base">
@@ -110,7 +191,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
               ))}
             </div>
             
-            {/* ВЕЛИКІ ТЕХНІЧНІ КАРТКИ */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
                 <p className="text-orange-800 font-medium text-base mb-2">⏳ Тривалість: {activity.duration_min}-{activity.duration_max} хв</p>
@@ -139,7 +219,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
               {activity.short_description}
             </p>
             
-            {/* РОЗДІЛ ІНСТРУКЦІЇ */}
             <div className="mt-12 mb-8">
               <div className="flex items-center gap-4 mb-6">
                 <div className="bg-[#44bdf3] text-white p-3 rounded-2xl shadow-lg">
@@ -153,12 +232,13 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
               </div>
               <div className="h-1 w-32 bg-[#FDB8D3] rounded-full mb-8"></div>
               
-              <div className="prose prose-lg text-gray-700 whitespace-pre-wrap leading-relaxed max-w-none text-lg">
-                {activity.full_content}
+              <div className="prose prose-lg text-gray-700 leading-relaxed max-w-none text-lg">
+                <ReactMarkdown>
+                  {activity.full_content}
+                </ReactMarkdown>
               </div>
             </div>
 
-            {/* МАТЕРІАЛИ */}
             {activity.file_urls && activity.file_urls.length > 0 && (
               <div className="mt-12 border-t border-gray-200 pt-8">
                 <h3 className="font-bold text-xl mb-6 text-gray-900">📂 Додаткові матеріали для скачування:</h3>
@@ -173,7 +253,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
         </div>
       </div> 
 
-      {/* ФУТЕР */}
       <footer className="bg-white border-t border-gray-200 py-10 px-6">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-center items-center gap-4">
           <Link href="/propose">

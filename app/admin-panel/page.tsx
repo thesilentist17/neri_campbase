@@ -8,9 +8,9 @@ export default function AdminPanelPage() {
   // --- АВТОРИЗАЦІЯ ---
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
-  
+
   // 🔴 ТУТ ВКАЖИ СВІЙ ПАРОЛЬ 🔴
-  const SECRET_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD; 
+  const SECRET_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
 
   // --- ДАНІ АДМІН-ПАНЕЛІ ---
   const [pendingActivities, setPendingActivities] = useState<any[]>([]);
@@ -38,7 +38,7 @@ export default function AdminPanelPage() {
     const { data, error } = await supabase
       .from('activities')
       .select('*')
-      .eq('status', 'pending')
+      .in('status', ['pending', 'editing'])
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -53,9 +53,15 @@ export default function AdminPanelPage() {
     const confirmApprove = window.confirm("Опублікувати цю гру? Вона стане видимою для всіх.");
     if (!confirmApprove) return;
 
+    // Знаходимо гру, яку зараз публікуємо, щоб взяти її (можливо відредагований) текст
+    const activityToPublish = pendingActivities.find(a => a.id === id);
+
     const { error } = await supabase
       .from('activities')
-      .update({ status: 'published' })
+      .update({
+        status: 'published',
+        full_content: activityToPublish.full_content // Зберігаємо твої виправлення
+      })
       .eq('id', id);
 
     if (!error) {
@@ -90,17 +96,17 @@ export default function AdminPanelPage() {
           </div>
           <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Доступ закрито</h1>
           <p className="text-gray-500 mb-8">Будь ласка, введіть пароль модератора</p>
-          
+
           <form onSubmit={handleLogin} className="space-y-6">
-            <input 
-              type="password" 
+            <input
+              type="password"
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
-              placeholder="Пароль..." 
+              placeholder="Пароль..."
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-center text-xl tracking-widest focus:outline-none focus:ring-2 focus:ring-[#FDB8D3]"
               required
             />
-            <button 
+            <button
               type="submit"
               className="w-full bg-[#FDB8D3] text-white font-bold py-4 rounded-xl hover:bg-[#f9a8c8] transition-colors shadow-md text-lg"
             >
@@ -163,21 +169,29 @@ export default function AdminPanelPage() {
           <div className="space-y-6">
             {pendingActivities.map((activity) => (
               <div key={activity.id} className="bg-white p-8 rounded-3xl shadow-md border-l-8 border-yellow-400 relative">
-                
+
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-6">
                   <div>
-                    <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full uppercase mb-3 inline-block">На модерації</span>
+                    {activity.status === 'pending' ? (
+                      <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full uppercase mb-3 inline-block">
+                        ✨ Нова активність
+                      </span>
+                    ) : (
+                      <span className="bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1 rounded-full uppercase mb-3 inline-block">
+                        ✏️ На редагуванні
+                      </span>
+                    )}
                     <h3 className="text-3xl font-bold text-gray-900">{activity.title}</h3>
                   </div>
-                  
+
                   <div className="flex gap-3 w-full md:w-auto">
-                    <button 
+                    <button
                       onClick={() => handleReject(activity.id)}
                       className="flex-1 md:flex-none bg-red-50 text-red-600 border border-red-200 font-bold px-6 py-3 rounded-xl hover:bg-red-100 transition-colors"
                     >
                       ❌ Відхилити
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleApprove(activity.id)}
                       className="flex-1 md:flex-none bg-green-500 text-white font-bold px-8 py-3 rounded-xl hover:bg-green-600 transition-colors shadow-sm"
                     >
@@ -189,11 +203,21 @@ export default function AdminPanelPage() {
                 <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-6">
                   <h4 className="font-bold text-gray-700 mb-2 text-sm uppercase">Короткий опис:</h4>
                   <p className="text-gray-600 mb-6 italic">{activity.short_description}</p>
-                  
-                  <h4 className="font-bold text-gray-700 mb-2 text-sm uppercase">Повні правила:</h4>
-                  <div className="prose prose-sm text-gray-700 whitespace-pre-wrap max-h-60 overflow-y-auto bg-white p-4 rounded-xl border border-gray-200">
-                    {activity.full_content}
-                  </div>
+
+                  <h4 className="font-bold text-gray-700 mb-2 text-sm uppercase">Повні правила (можна редагувати):</h4>
+                  <textarea
+                    value={activity.full_content}
+                    onChange={(e) => {
+                      // Оновлюємо текст конкретної гри під час вводу
+                      setPendingActivities(pendingActivities.map(a =>
+                        a.id === activity.id ? { ...a, full_content: e.target.value } : a
+                      ));
+                    }}
+                    className="w-full min-h-[200px] text-gray-700 bg-white p-4 rounded-xl border border-blue-300 focus:outline-none focus:ring-2 focus:ring-[#44bdf3] resize-y"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    💡 Використовуй <b>**жирний текст**</b> або <b>## Заголовок</b> для форматування.
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-sm font-bold text-gray-500">
