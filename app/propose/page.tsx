@@ -30,7 +30,7 @@ export default function ProposePage() {
   const [shortDescription, setShortDescription] = useState("");
   const [fullContent, setFullContent] = useState("");
   const [hasEquipment, setHasEquipment] = useState(false);
-  const [equipment, setEquipment] = useState(""); // Новий стан для списку реквізиту
+  const [equipment, setEquipment] = useState("");
 
   // Числові стани
   const [ageMin, setAgeMin] = useState("");
@@ -60,6 +60,64 @@ export default function ProposePage() {
     setLocationIds(prev => prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]);
   };
 
+  // 🟢 ОБРОБНИК ТА ВАЛІДАТОР ДЛЯ ФОТОГРАФІЙ
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validImages: File[] = [];
+    const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 МБ у байтах
+
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        alert(`❌ Файл "${file.name}" не є зображенням! Можна завантажувати лише фото.`);
+        e.target.value = "";
+        setSelectedImages([]);
+        return;
+      }
+      if (file.size > MAX_IMAGE_SIZE) {
+        alert(`❌ Фото "${file.name}" занадто велике! Максимально дозволений розмір — 5 МБ.`);
+        e.target.value = "";
+        setSelectedImages([]);
+        return;
+      }
+      validImages.push(file);
+    }
+    setSelectedImages(validImages);
+  };
+
+  // 🟢 ОБРОБНИК ТА ВАЛІДАТОР ДЛЯ ДОКУМЕНТІВ (ДОДАНО ПРЕЗЕНТАЦІЇ ТА ТАБЛИЦІ)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles: File[] = [];
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 МБ у байтах
+    // Додали формати PowerPoint та Excel
+    const allowedExtensions = [
+      "pdf", "doc", "docx", "txt", "ppt", "pptx", "xls", "xlsx", "csv", // Документи та таблиці
+      "mp3", "wav", // Аудіо
+      "mp4", "mov", // Відео (з обережністю!)
+      "zip", "rar", "7z", , // Архіви
+      "svg"  // Векторна графіка
+    ];
+
+    for (const file of files) {
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || "";
+
+      if (!allowedExtensions.includes(fileExt)) {
+        alert(`❌ Недопустимий формат для файлу "${file.name}". Дозволені лише: PDF, DOC, TXT, PPT (презентації) та XLS (таблиці).`);
+        e.target.value = "";
+        setSelectedFiles([]);
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`❌ Файл "${file.name}" занадто великий! Максимально дозволений розмір — 10 МБ.`);
+        e.target.value = "";
+        setSelectedFiles([]);
+        return;
+      }
+      validFiles.push(file);
+    }
+    setSelectedFiles(validFiles);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -72,25 +130,38 @@ export default function ProposePage() {
     }
 
     try {
-      // 1. Завантаження картинок у Supabase (залишаємо як було)
+      // 1. Завантаження картинок у Supabase
       const imageUrls: string[] = [];
       for (const file of selectedImages) {
         const fileExt = file.name.split('.').pop();
-        const fileName = `images/${Date.now()}-${Math.random()}.${fileExt}`;
-        const { error } = await supabase.storage.from('activity-media').upload(fileName, file);
-        if (!error) {
-          const { data } = supabase.storage.from('activity-media').getPublicUrl(fileName);
+        const randomStr = Math.random().toString(36).substring(2, 7);
+        const fileName = `images/${Date.now()}-${randomStr}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('activity-media')
+          .upload(fileName, file, {
+            contentType: file.type,
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error("Деталі помилки Supabase Storage:", uploadError);
+          throw new Error(`Не вдалося завантажити фото "${file.name}". Причина: ${uploadError.message}`);
+        }
+
+        const { data } = supabase.storage.from('activity-media').getPublicUrl(fileName);
+        if (data?.publicUrl) {
           imageUrls.push(data.publicUrl);
         }
       }
 
-      // 2. Завантаження документів на Google Диск (НОВА ЛОГІКА)
+      // 2. Завантаження документів на Google Диск
       const fileUrls: string[] = [];
       for (const file of selectedFiles) {
         const fileFormData = new FormData();
         fileFormData.append('file', file);
 
-        // Звертаємось до нашого API, який ми створимо для Диску
         const uploadResponse = await fetch('/api/upload-to-drive', {
           method: 'POST',
           body: fileFormData,
@@ -98,11 +169,11 @@ export default function ProposePage() {
 
         const uploadData = await uploadResponse.json();
 
-        // Якщо сервер відповів успішно і повернув лінк, додаємо його в масив
         if (uploadResponse.ok && uploadData.url) {
           fileUrls.push(uploadData.url);
         } else {
           console.error("Помилка завантаження файлу на Google Диск:", uploadData.error);
+          throw new Error(`Помилка Google Диску: ${uploadData.error || 'Невідома помилка'}`);
         }
       }
 
@@ -113,7 +184,7 @@ export default function ProposePage() {
       }
 
       // 4. Запис усіх даних гри у базу даних Supabase
-      const { error } = await supabase.from('activities').insert({
+      const { error: dbError } = await supabase.from('activities').insert({
         title,
         author,
         category_ids: categoryIds,
@@ -132,20 +203,20 @@ export default function ProposePage() {
         short_description: shortDescription,
         full_content: fullContent,
         image_urls: imageUrls,
-        file_urls: fileUrls, // Записуємо масив лінків з Google Диску
+        file_urls: fileUrls,
         status: 'pending'
       });
 
-      if (error) throw error;
+      if (dbError) throw dbError;
       setIsSuccess(true);
 
     } catch (err: any) {
       console.error(err);
-      setErrorMsg("Виникла помилка при відправці. Перевірте з'єднання та спробуйте ще раз.");
+      setErrorMsg(err.message || "Виникла помилка при відправці. Спробуйте ще раз.");
     } finally {
       setIsSubmitting(false);
     }
-};
+  };
 
   if (isSuccess) {
     return (
@@ -164,7 +235,7 @@ export default function ProposePage() {
 
   return (
     <main className="min-h-screen bg-gray-50 font-sans pb-20">
-      
+
       {/* Шапка */}
       <div className="bg-[#44bdf3] p-6 lg:p-10 text-white shadow-md">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
@@ -190,11 +261,11 @@ export default function ProposePage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          
+
           {/* БЛОК 1: ОСНОВНА ІНФОРМАЦІЯ */}
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
             <h2 className="text-2xl font-extrabold text-gray-800 border-b border-gray-100 pb-4">1. Основна інформація</h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <label className="block text-gray-800 font-bold">Назва гри або активності <span className="text-red-500">*</span></label>
@@ -237,9 +308,9 @@ export default function ProposePage() {
           {/* БЛОК 2: ТЕХНІЧНІ ПАРАМЕТРИ */}
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-8">
             <h2 className="text-2xl font-extrabold text-gray-800 border-b border-gray-100 pb-4">2. Технічні параметри гри</h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              
+
               <div className="space-y-3">
                 <label className="block text-gray-800 font-bold">Тривалість гри (у хвилинах)</label>
                 <div className="flex items-center gap-3">
@@ -289,18 +360,17 @@ export default function ProposePage() {
                 <input type="checkbox" checked={hasEquipment} onChange={e => setHasEquipment(e.target.checked)} className="w-6 h-6 text-[#44bdf3] rounded focus:ring-[#44bdf3]" />
                 <span className="text-gray-900 font-extrabold text-lg">Для цієї активності потрібен реквізит</span>
               </label>
-              
-              {/* Поле з'являється тільки якщо стоїть галочка */}
+
               {hasEquipment && (
                 <div className="mt-4 pt-4 border-t border-gray-200 transition-all">
                   <label className="block text-gray-800 font-bold mb-2">Перелік необхідного реквізиту <span className="text-red-500">*</span></label>
-                  <textarea 
-                    required={hasEquipment} 
-                    value={equipment} 
-                    onChange={e => setEquipment(e.target.value)} 
-                    rows={3} 
-                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#44bdf3]" 
-                    placeholder="Перелічіть усе, що знадобиться: 2 м'ячі, 10 пов'язок на очі, колонка для музики..." 
+                  <textarea
+                    required={hasEquipment}
+                    value={equipment}
+                    onChange={e => setEquipment(e.target.value)}
+                    rows={3}
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#44bdf3]"
+                    placeholder="Перелічіть усе, що знадобиться: 2 м'ячі, 10 пов'язок на очі, колонка для музики..."
                   />
                 </div>
               )}
@@ -311,7 +381,7 @@ export default function ProposePage() {
           {/* БЛОК 3: ОПИС ТА ФАЙЛИ */}
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
             <h2 className="text-2xl font-extrabold text-gray-800 border-b border-gray-100 pb-4">3. Опис та матеріали</h2>
-            
+
             <div className="space-y-3">
               <label className="block text-gray-800 font-bold">Короткий опис (для карток на сайті) <span className="text-red-500">*</span></label>
               <textarea required value={shortDescription} onChange={e => setShortDescription(e.target.value)} rows={2} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#44bdf3]" placeholder="Суть гри в 1-2 реченнях, щоб зацікавити аніматора..." />
@@ -320,66 +390,48 @@ export default function ProposePage() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <label className="block text-gray-800 font-bold">Повні правила та інструкції <span className="text-red-500">*</span></label>
-                
-                {/* Іконка підказки */}
+
                 <div className="relative group cursor-pointer">
                   <svg className="w-6 h-6 text-gray-400 hover:text-[#44bdf3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  
-                  {/* Контент підказки */}
+
                   <div className="absolute left-0 bottom-full mb-3 w-80 p-5 bg-gray-900 text-white text-sm rounded-2xl shadow-xl hidden group-hover:block z-50 leading-relaxed">
                     <span className="font-extrabold text-[#44bdf3] block mb-3 text-base">Рекомендований формат:</span>
-                    
-                    <p className="mb-3">
-                      <span className="font-bold block">1. Підготовка:</span>
-                      [опис того, що треба зробити до початку]
-                    </p>
-                    
-                    <p className="mb-3">
-                      <span className="font-bold block">2. Загальні правила:</span>
-                      [в чому суть гри, як визначається переможець тощо]
-                    </p>
-                    
-                    <p className="mb-3">
-                      <span className="font-bold block">3. Хід гри:</span>
-                      [покроковий опис]
-                    </p>
-                    
-                    <p>
-                      <span className="font-bold block">4. Особливі правила та безпека:</span>
-                      [що заборонено або на що звернути увагу]
-                    </p>
+                    <p className="mb-3"><span className="font-bold block">1. Підготовка:</span>[опис того, що треба зробити до початку]</p>
+                    <p className="mb-3"><span className="font-bold block">2. Загальні правила:</span>[в чому суть гри, як визначається переможець тощо]</p>
+                    <p className="mb-3"><span className="font-bold block">3. Хід гри:</span>[покроковий опис]</p>
+                    <p><span className="font-bold block">4. Особливі правила та безпека:</span>[що заборонено або на що звернути увагу]</p>
                   </div>
                 </div>
               </div>
 
-              <textarea 
-                required 
-                value={fullContent} 
-                onChange={e => setFullContent(e.target.value)} 
-                rows={10} 
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#44bdf3]" 
-                placeholder="Напишіть правила тут..." 
+              <textarea
+                required
+                value={fullContent}
+                onChange={e => setFullContent(e.target.value)}
+                rows={10}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#44bdf3]"
+                placeholder="Напишіть правила тут..."
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50">
               <div className="space-y-2">
-                <label className="block text-gray-800 font-bold">📸 Додати фото або схеми</label>
-                <input 
+                <label className="block text-gray-800 font-bold">📸 Додати фото або схеми (до 5 МБ)</label>
+                <input
                   type="file" multiple accept="image/*"
-                  onChange={(e) => setSelectedImages(Array.from(e.target.files || []))}
+                  onChange={handleImageChange}
                   className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#FDB8D3]/20 file:text-[#FDB8D3] hover:file:bg-[#FDB8D3]/30 cursor-pointer"
                 />
                 {selectedImages.length > 0 && <p className="text-sm text-green-600 font-bold mt-2">✓ Вибрано фотографій: {selectedImages.length}</p>}
               </div>
 
               <div className="space-y-2">
-                <label className="block text-gray-800 font-bold">📄 Додати PDF / Документи</label>
-                <input 
-                  type="file" multiple accept=".pdf,.doc,.docx,.txt"
-                  onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+                <label className="block text-gray-800 font-bold">📄 Додати PDF, Документи, Презентації чи Таблиці (до 10 МБ)</label>
+                <input
+                  type="file" multiple accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.csv"
+                  onChange={handleFileChange}
                   className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#44bdf3]/20 file:text-[#44bdf3] hover:file:bg-[#44bdf3]/30 cursor-pointer"
                 />
                 {selectedFiles.length > 0 && <p className="text-sm text-green-600 font-bold mt-2">✓ Вибрано файлів: {selectedFiles.length}</p>}

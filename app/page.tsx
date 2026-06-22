@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { supabase } from "@/lib/supabase"; // Переконайся, що шлях правильний
 
 const categories = [
   { id: "vechory", title: "Вечори", icon: <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" /></svg> },
@@ -28,20 +29,49 @@ const carouselImages = [
 
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % carouselImages.length);
     }, 5000);
-
     return () => clearInterval(timer);
   }, []);
+
+  const handleSendFeedback = async () => {
+    if (!message.trim()) return;
+    setIsSubmitting(true);
+    
+    const { error } = await supabase.from('feedback').insert([{ message }]);
+    
+    if (error) {
+      alert("Помилка при відправці. Спробуйте ще раз.");
+    } else {
+      setSuccess(true);
+      setTimeout(() => {
+        setIsContactModalOpen(false);
+        setSuccess(false);
+        setMessage("");
+      }, 2000);
+    }
+    setIsSubmitting(false);
+  };
 
   return (
     <main className="min-h-screen bg-[#FDB8D3] flex flex-col relative overflow-hidden font-sans">
 
       {/* Шапка з кнопками */}
       <nav className="absolute top-0 w-full p-6 lg:px-12 flex justify-end gap-4 z-50">
+        <button 
+          onClick={() => setIsContactModalOpen(true)}
+          // 🟢 ТУТ ЗМІНИЛИ ТЕКСТ
+          className="bg-white/20 backdrop-blur-sm border-2 border-white text-white font-bold px-6 py-2.5 rounded-full hover:bg-white hover:text-[#FDB8D3] transition-all text-sm md:text-base"
+        >
+          Зв'язок та пропозиції
+        </button>
         <Link href="/propose">
           <button className="bg-transparent border-2 border-white text-white font-bold px-6 py-2.5 rounded-full hover:bg-white hover:text-[#FDB8D3] transition-colors text-sm md:text-base">
             + Запропонувати активність
@@ -54,10 +84,104 @@ export default function Home() {
         </Link>
       </nav>
 
-      {/* Головна секція */}
-      <div className="flex-grow flex flex-col lg:flex-row items-center justify-between p-8 lg:p-16 pb-32 gap-10 mt-16 lg:mt-0">
+      {/* Модальне вікно зв'язку */}
+      {isContactModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative">
+            <button onClick={() => setIsContactModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
+            
+            {success ? (
+              <div className="text-center py-10">
+                <div className="text-5xl mb-4">✅</div>
+                <h3 className="text-xl font-bold text-gray-800">Дякуємо за відгук!</h3>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* 🟢 ТУТ ТЕЖ ОНОВИЛИ ЗАГОЛОВОК */}
+                <h2 className="text-2xl font-extrabold text-gray-800">Зв'язок з автором</h2>
+                <p className="text-gray-500 text-sm">Ваші ідеї роблять цей сайт кращим!</p>
+                
+                <div className="space-y-3">
+                  <a href="https://t.me/thesilentist" target="_blank" className="flex items-center gap-3 p-3 bg-blue-50 text-blue-600 rounded-xl font-bold hover:bg-blue-100 transition-colors">
+                    <span>📱 Telegram: @thesilentist</span>
+                  </a>
+                  <div className="p-3 bg-gray-50 text-gray-700 rounded-xl font-bold">
+                    📞 Телефон: 093 823 6241
+                  </div>
+                </div>
 
-        {/* Текст */}
+                <div className="border-t pt-4">
+                  <label className="block text-gray-700 font-bold mb-2">Надіслати ідею чи пропозицію:</label>
+                  <textarea 
+                    value={message} 
+                    onChange={(e) => setMessage(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-[#44bdf3] outline-none" 
+                    rows={4} 
+                    placeholder="Форма, на жаль, поки не працює, але ми обов'язково її доробимо! Поки можете писати свої пропозиції у Telegram або на пошту: nazar18derevoriz@gmail.com"
+                  />
+                  <button 
+                    disabled={isSubmitting || !message.trim()}
+                    onClick={handleSendFeedback}
+                    className="w-full mt-4 bg-[#44bdf3] text-white font-bold py-3 rounded-xl hover:bg-[#32b0e6] transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Відправка..." : "Надіслати пропозицію"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Модальне вікно зв'язку */}
+      {isContactModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative">
+            <button onClick={() => setIsContactModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
+            
+            {success ? (
+              <div className="text-center py-10">
+                <div className="text-5xl mb-4">✅</div>
+                <h3 className="text-xl font-bold text-gray-800">Дякуємо за повідомлення!</h3>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-extrabold text-gray-800">Зв'язок з автором</h2>
+                
+                <div className="space-y-3">
+                  <a href="https://t.me/thesilentist" target="_blank" className="flex items-center gap-3 p-3 bg-blue-50 text-blue-600 rounded-xl font-bold hover:bg-blue-100 transition-colors">
+                    <span>📱 Telegram: @thesilentist</span>
+                  </a>
+                  <div className="p-3 bg-gray-50 text-gray-700 rounded-xl font-bold">
+                    📞 Телефон: 093 823 6241
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <label className="block text-gray-700 font-bold mb-2">Надіслати ідею чи пропозицію:</label>
+                  <textarea 
+                    value={message} 
+                    onChange={(e) => setMessage(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-[#44bdf3] outline-none" 
+                    rows={4} 
+                    placeholder="Форма, на жаль, поки не працює, але ми обов'язково її доробимо! Поки можете писати свої пропозиції у Telegram або на пошту: nazar18derevoriz@gmail.com"
+                  />
+                  <button 
+                    disabled={isSubmitting || !message.trim()}
+                    onClick={handleSendFeedback}
+                    className="w-full mt-4 bg-[#44bdf3] text-white font-bold py-3 rounded-xl hover:bg-[#32b0e6] transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Відправка..." : "Надіслати"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Головна секція (без змін) */}
+      <div className="flex-grow flex flex-col lg:flex-row items-center justify-between p-8 lg:p-16 pb-32 gap-10 mt-16 lg:mt-0">
         <div className="w-full lg:w-5/12 z-10 space-y-6">
           <h1 className="text-6xl md:text-8xl font-extrabold text-white drop-shadow-sm leading-tight" style={{ fontFamily: 'system-ui, sans-serif' }}>
             Аніматори<br />Нері
@@ -67,60 +191,40 @@ export default function Home() {
           </p>
         </div>
 
-        {/* ПРАВА ЧАСТИНА: Плавний слайдер */}
         <div className="w-full lg:w-7/12 h-[40vh] lg:h-[60vh] relative rounded-3xl overflow-hidden shadow-2xl bg-black/5">
           <div className="w-full h-full relative">
             {carouselImages.map((imagePath, index) => (
               <div
                 key={index}
-                className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${currentSlide === index ? 'opacity-100 z-10' : 'opacity-0 z-0'
-                  }`}
+                className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${currentSlide === index ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
               >
-                <Image
-                  src={imagePath}
-                  alt={`Кадр з табору ${index + 1}`}
-                  fill
-                  priority={index === 0}
-                  className="object-cover"
-                  sizes="(max-width: 1024px) 100vw, 60vw"
-                />
+                <Image src={imagePath} alt={`Кадр з табору ${index + 1}`} fill priority={index === 0} className="object-cover" sizes="(max-width: 1024px) 100vw, 60vw" />
               </div>
             ))}
           </div>
-
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3 z-30 bg-black/30 px-4 py-2 rounded-full backdrop-blur-md">
             {carouselImages.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
-                aria-label={`Перейти до слайду ${index + 1}`}
-                className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${currentSlide === index ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/70'
-                  }`}
+                className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${currentSlide === index ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/70'}`}
               />
             ))}
           </div>
         </div>
       </div>
 
-      {/* ОНОВЛЕНА: Панель з кольором #44bdf3 та збільшеним шрифтом */}
+      {/* Панель категорій */}
       <div className="w-full bg-[#44bdf3] absolute bottom-0 flex overflow-x-auto shadow-2xl z-20" style={{ scrollbarWidth: 'none' }}>
         {categories.map((cat) => (
-          <Link
-            href={`/category/${cat.id}`}
-            key={cat.id}
-            className="flex-1 min-w-fit px-6 py-4 flex flex-row items-center justify-center gap-3 hover:bg-[#32b0e6] transition-colors border-r border-[#32b0e6] last:border-r-0 group"
-          >
-            <div className="group-hover:scale-110 transition-transform flex items-center justify-center">
-              {cat.icon}
-            </div>
-            {/* Текст збільшено до text-lg md:text-xl */}
+          <Link href={`/category/${cat.id}`} key={cat.id} className="flex-1 min-w-fit px-6 py-4 flex flex-row items-center justify-center gap-3 hover:bg-[#32b0e6] transition-colors border-r border-[#32b0e6] last:border-r-0 group">
+            <div className="group-hover:scale-110 transition-transform flex items-center justify-center">{cat.icon}</div>
             <span className="font-extrabold text-white text-center uppercase tracking-wide text-lg md:text-xl whitespace-nowrap drop-shadow-sm">
               {cat.title}
             </span>
           </Link>
         ))}
       </div>
-
     </main>
   );
 }

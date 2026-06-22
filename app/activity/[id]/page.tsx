@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import ReactMarkdown from "react-markdown";
+import { toPng } from "html-to-image";
 
 const categoriesMap: Record<string, string> = {
   "vechory": "Вечори",
@@ -28,6 +29,10 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
   const [isLoading, setIsLoading] = useState(true);
   
   const [isCopied, setIsCopied] = useState(false);
+
+  // СТАНИ ДЛЯ ОФЛАЙН ЗБЕРЕЖЕННЯ
+  const activityCardRef = useRef<HTMLDivElement>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // СТАНИ ДЛЯ ВЛАСНОГО ВІКНА ВВОДУ ПАРОЛЯ
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
@@ -55,12 +60,38 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
     }
   };
 
-  // 1. Функція просто відкриває наше віконце
+  // Функція для завантаження картинки
+  const handleDownloadOffline = async () => {
+    if (activityCardRef.current === null) return;
+    
+    setIsDownloading(true);
+    try {
+      const dataUrl = await toPng(activityCardRef.current, { 
+        backgroundColor: '#ffffff',
+        pixelRatio: 2, // Висока якість для телефонів
+        style: {
+          margin: '0',
+          borderRadius: '0', // Щоб на скріншоті не було обрізаних кутів
+        }
+      });
+      
+      const link = document.createElement('a');
+      const safeTitle = activity?.title ? activity.title.replace(/\s+/g, '_') : 'activity';
+      link.download = `${safeTitle}_offline.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Помилка при завантаженні:', err);
+      alert('Не вдалося зберегти гру. Спробуйте ще раз.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const handleEditClick = () => {
     setShowPasswordPrompt(true);
   };
 
-  // 2. Функція, яка спрацьовує при натисканні "Підтвердити" у нашому віконці
   const submitEdit = async () => {
     if (passwordInput === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
       const { error } = await supabase
@@ -78,7 +109,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
       alert("❌ Невірний пароль! Доступ заборонено.");
     }
     
-    // Закриваємо віконце та очищаємо поле вводу
     setShowPasswordPrompt(false);
     setPasswordInput("");
   };
@@ -134,15 +164,44 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
             </button>
             
             <div className="flex gap-2 flex-wrap justify-end">
-              {/* КНОПКА РЕДАГУВАННЯ (ОЛІВЕЦЬ) */}
+              
+              {/* КНОПКА РЕДАГУВАННЯ */}
               <button 
                 onClick={handleEditClick}
                 title="Відправити на редагування"
-                className="flex items-center justify-center bg-gray-50 hover:bg-yellow-50 border border-gray-200 hover:border-yellow-300 text-gray-500 hover:text-yellow-600 font-bold w-11 h-11 rounded-xl transition-all shadow-sm"
+                className="flex items-center justify-center bg-gray-50 hover:bg-yellow-50 border border-gray-200 hover:border-yellow-300 text-gray-500 hover:text-yellow-600 font-bold w-11 h-11 rounded-xl transition-all shadow-sm shrink-0"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
+              </button>
+
+              {/* КНОПКА ЗБЕРЕГТИ ДЛЯ ОФЛАЙНУ */}
+              <button 
+                onClick={handleDownloadOffline}
+                disabled={isDownloading}
+                className={`flex items-center gap-2 border font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-sm ${
+                  isDownloading 
+                    ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' 
+                    : 'bg-[#44bdf3] border-[#44bdf3] text-white hover:bg-[#32a8dd] hover:border-[#32a8dd]'
+                }`}
+              >
+                {isDownloading ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span className="hidden sm:inline">Зберігаємо...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span className="hidden sm:inline">Зберегти офлайн</span>
+                  </>
+                )}
               </button>
 
               {/* Кнопка Поділитися */}
@@ -175,7 +234,9 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
         </div>
 
         <div className="max-w-4xl mx-auto mt-10 px-6 mb-10">
-          <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-gray-100 mb-8">
+          
+          {/* 🟢 ОСЬ ТУТ ПОЧИНАЄТЬСЯ REF, ЯКИЙ СТАНЕ КАРТИНКОЮ */}
+          <div ref={activityCardRef} className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-gray-100 mb-8">
             <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-6 leading-tight">{activity.title}</h1>
             
             <div className="flex flex-wrap gap-2 mb-8">
@@ -250,6 +311,8 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
               </div>
             )}
           </div>
+          {/* 🟢 КІНЕЦЬ БЛОКУ REF */}
+
         </div>
       </div> 
 
