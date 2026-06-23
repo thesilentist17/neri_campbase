@@ -13,7 +13,9 @@ const categoriesMap: Record<string, string> = {
   "mali-ihry": "Малі ігри",
   "velyki-ihry": "Великі ігри",
   "maister-klasy": "Майстер-класи",
-  "hrupky": "Групки"
+  "hrupky": "Групки",
+  "duelni-ihry": "Дуельні ігри",
+  "kvest-tochky": "Точки на квест"
 };
 
 const locationsMap: Record<string, string> = {

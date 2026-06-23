@@ -10,7 +10,9 @@ const categoriesList = [
   { id: "mali-ihry", title: "Малі ігри" },
   { id: "velyki-ihry", title: "Великі ігри" },
   { id: "maister-klasy", title: "Майстер-класи" },
-  { id: "hrupky", title: "Групки" }
+  { id: "hrupky", title: "Групки" },
+  { id: "duelni-ihry", title: "Дуельні ігри" },
+  { id: "kvest-tochky", title: "Точки на квест" }
 ];
 
 const locationsList = [

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
-// Імпортуємо наш файл підключення до бази даних
 import { supabase } from "@/lib/supabase";
 
 const categoriesList = [
@@ -11,7 +10,9 @@ const categoriesList = [
   { id: "mali-ihry", title: "Малі ігри" },
   { id: "velyki-ihry", title: "Великі ігри" },
   { id: "maister-klasy", title: "Майстер-класи" },
-  { id: "hrupky", title: "Групки" }
+  { id: "hrupky", title: "Групки" },
+  { id: "duelni-ihry", title: "Дуельні ігри" },
+  { id: "kvest-tochky", title: "Точки на квест" }
 ];
 
 const locationsMap: Record<string, string> = {
@@ -24,22 +25,23 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
   const { id } = use(params);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Додаємо стани для збереження ігор з бази та статусу завантаження
   const [activities, setActivities] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Стан фільтрів (введення користувача) - ДОДАНО searchTitle
+  // 🟢 ДОДАНО: Стани для пагінації
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const [filterInputs, setFilterInputs] = useState({
     searchTitle: "",
     age: "",
     duration: "",
     participants: "",
     animators: "",
-    equipmentStatus: "any", // 'any' | 'yes' | 'no'
-    location: "any" // 'any' | 'indoor' | 'outdoor' | 'water'
+    equipmentStatus: "any",
+    location: "any"
   });
 
-  // Стани для значень, які реально застосовані після натискання кнопки
   const [appliedFilters, setAppliedFilters] = useState({
     searchTitle: "",
     age: "",
@@ -53,10 +55,9 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
   const currentCategory = categoriesList.find(c => c.id === id);
   const title = currentCategory ? currentCategory.title : "Категорія не знайдена";
 
-  // Цей код автоматично запускається, коли користувач заходить на сторінку
   useEffect(() => {
     async function fetchActivities() {
-      setIsLoading(true); // Вмикаємо індикатор завантаження
+      setIsLoading(true);
 
       const { data, error } = await supabase
         .from('activities')
@@ -67,65 +68,68 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
       if (error) {
         console.error("Помилка завантаження:", error);
       } else {
-        setActivities(data || []); // Зберігаємо отримані ігри
+        setActivities(data || []);
       }
 
-      setIsLoading(false); // Вимикаємо індикатор
+      setIsLoading(false);
     }
 
     fetchActivities();
-  }, [id]); // Запускатиметься знову, якщо зміниться категорія
+  }, [id]);
 
-  // Функція, яка фіксує фільтри при натисканні на кнопку
   const handleApplyFilters = () => {
     setAppliedFilters(filterInputs);
+    setCurrentPage(1); // 🟢 Скидаємо на першу сторінку при новому пошуку
   };
 
-  // Фільтруємо список ігор на льоту на основі розумних поодиноких полів
+  const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1); // 🟢 Скидаємо на першу сторінку при зміні ліміту
+  };
+
+  // Фільтруємо всі ігри
   const displayedActivities = activities.filter(a => {
-    // 0. Фільтр Пошуку за назвою (без урахування регістру)
     if (appliedFilters.searchTitle) {
       if (!a.title.toLowerCase().includes(appliedFilters.searchTitle.toLowerCase())) return false;
     }
 
-    // 1. Фільтр Віку: введене число має потрапляти в [age_min, age_max]
     if (appliedFilters.age) {
       const val = parseInt(appliedFilters.age);
       if (a.age_min !== null && val < a.age_min) return false;
       if (a.age_max !== null && val > a.age_max) return false;
     }
 
-    // 2. Фільтр Тривалості: введене число має потрапляти в [duration_min, duration_max]
     if (appliedFilters.duration) {
       const val = parseInt(appliedFilters.duration);
       if (a.duration_min !== null && val < a.duration_min) return false;
       if (a.duration_max !== null && val > a.duration_max) return false;
     }
 
-    // 3. Фільтр Учасників: введене число має потрапляти в [participants_min, participants_max]
     if (appliedFilters.participants) {
       const val = parseInt(appliedFilters.participants);
       if (a.participants_min !== null && val < a.participants_min) return false;
       if (a.participants_max !== null && val > a.participants_max) return false;
     }
 
-    // 4. Фільтр Аніматорів: наявна кількість (val) має бути БІЛЬШОЮ або рівною за необхідний мінімум
     if (appliedFilters.animators) {
       const val = parseInt(appliedFilters.animators);
       if (a.animators_min !== null && val < a.animators_min) return false;
     }
 
-    // 5. Перемикач Реквізиту (Три стани)
     if (appliedFilters.equipmentStatus === "yes" && !a.has_equipment) return false;
     if (appliedFilters.equipmentStatus === "no" && a.has_equipment) return false;
 
-    // 6. Фільтр Локації
     if (appliedFilters.location !== "any") {
       if (!a.location || !a.location.includes(appliedFilters.location)) return false;
     }
 
     return true;
   });
+
+  // 🟢 ОБРАХУНОК ПАГІНАЦІЇ
+  const totalPages = Math.ceil(displayedActivities.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedActivities = displayedActivities.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <main className="min-h-screen bg-gray-50 font-sans flex flex-col">
@@ -181,13 +185,11 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
           <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">Фільтри пошуку</h2>
           <div className="space-y-4 text-gray-600">
 
-            {/* Фільтр за назвою (ПОШУК) */}
             <div className="space-y-1 pb-2 border-b border-gray-100">
               <label className="block text-sm font-bold text-gray-700">🔍 Пошук за назвою</label>
               <input type="text" placeholder="Введіть назву гри..." value={filterInputs.searchTitle} onChange={e => setFilterInputs({ ...filterInputs, searchTitle: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
-            {/* Фільтр локації */}
             <div className="space-y-1 pt-2">
               <label className="block text-sm font-bold text-gray-700">📍 Локація</label>
               <select value={filterInputs.location} onChange={e => setFilterInputs({ ...filterInputs, location: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
@@ -198,31 +200,26 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               </select>
             </div>
 
-            {/* Фільтр віку */}
             <div className="space-y-1">
               <label className="block text-sm font-bold text-gray-700">🎂 Вік дитини (років)</label>
               <input type="number" placeholder="Наприклад: 10" value={filterInputs.age} onChange={e => setFilterInputs({ ...filterInputs, age: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
-            {/* Фільтр тривалості */}
             <div className="space-y-1">
               <label className="block text-sm font-bold text-gray-700">⏳ Скільки маєте часу (хв)</label>
               <input type="number" placeholder="Наприклад: 45" value={filterInputs.duration} onChange={e => setFilterInputs({ ...filterInputs, duration: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
-            {/* Фільтр кількості учасників */}
             <div className="space-y-1">
               <label className="block text-sm font-bold text-gray-700">👥 Кількість учасників</label>
               <input type="number" placeholder="Наприклад: 25" value={filterInputs.participants} onChange={e => setFilterInputs({ ...filterInputs, participants: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
-            {/* Фільтр кількості аніматорів */}
             <div className="space-y-1">
               <label className="block text-sm font-bold text-gray-700">🧑‍💼 Скільки є аніматорів</label>
               <input type="number" placeholder="Наприклад: 3" value={filterInputs.animators} onChange={e => setFilterInputs({ ...filterInputs, animators: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
             </div>
 
-            {/* Трьохпозиційний перемикач реквізиту */}
             <div className="space-y-1 pt-1">
               <label className="block text-sm font-bold text-gray-700">🎒 Наявність реквізиту</label>
               <select value={filterInputs.equipmentStatus} onChange={e => setFilterInputs({ ...filterInputs, equipmentStatus: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
@@ -240,20 +237,35 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
         {/* ПРАВА КОЛОНКА: Список активностей з Бази Даних */}
         <div className="w-full lg:w-3/4 space-y-6">
-          <div className="flex justify-between items-end mb-4">
+          
+          {/* 🟢 ОНОВЛЕНА ШАПКА З СЕЛЕКТОРОМ ПАГІНАЦІЇ */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4">
             <h2 className="text-2xl font-bold text-gray-800">
               Знайдено активностей: {isLoading ? "..." : displayedActivities.length}
             </h2>
+            
+            {!isLoading && displayedActivities.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-500">Показувати по:</span>
+                <select 
+                  value={itemsPerPage} 
+                  onChange={handleItemsPerPageChange}
+                  className="bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-sm font-bold text-gray-700 focus:outline-none focus:border-[#44bdf3] cursor-pointer"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            )}
           </div>
 
-          {/* Показуємо текст під час завантаження */}
           {isLoading && (
             <div className="p-10 text-center text-gray-500 font-medium">
               Шукаємо активності в базі даних...
             </div>
           )}
 
-          {/* Показуємо повідомлення, якщо ігор немає */}
           {!isLoading && displayedActivities.length === 0 && (
             <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 text-center flex flex-col items-center gap-4">
               <span className="text-4xl">🏜️</span>
@@ -261,8 +273,8 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
             </div>
           )}
 
-          {/* Малюємо картку для кожної гри, знайденої в базі */}
-          {!isLoading && displayedActivities.map((activity) => (
+          {/* 🟢 ВИВОДИМО ЛИШЕ ОБРІЗАНИЙ МАСИВ (paginatedActivities) */}
+          {!isLoading && paginatedActivities.map((activity) => (
             <Link
               href={`/activity/${activity.id}`}
               key={activity.id}
@@ -271,7 +283,6 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               <div className="flex justify-between items-start">
                 <h3 className="text-2xl font-bold text-gray-900">{activity.title}</h3>
 
-                {/* Локація */}
                 {activity.location && activity.location.length > 0 && (
                   <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase shrink-0 ml-4">
                     {activity.location[0] === 'outdoor' ? 'Надворі' :
@@ -283,45 +294,39 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
               <p className="text-gray-600 leading-relaxed">{activity.short_description}</p>
 
-              {/* РОЗШИРЕНИЙ БЛОК ЗІ ЗНАЧКАМИ */}
               <div className="flex flex-wrap gap-2 mt-2">
                 
-                {/* 1. Вік */}
                 {(activity.age_min || activity.age_max) && (
                   <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
                     🎂 Вік: {activity.age_min || 0}-{activity.age_max || '18+'} р.
                   </span>
                 )}
 
-                {/* 2. Час на гру */}
                 {(activity.duration_min || activity.duration_max) && (
                   <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
                     ⏳ Гра: {activity.duration_min || 0}-{activity.duration_max || '...'} хв
                   </span>
                 )}
 
-                {/* 3. Час на підготовку (ВИПРАВЛЕНО) */}
                 {activity.preparation_time !== null && activity.preparation_time !== undefined && (
                   <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
                     🛠 Підготовка: {activity.preparation_time} хв
                   </span>
                 )}
 
-                {/* 4. Кількість учасників */}
                 {(activity.participants_min || activity.participants_max) && (
                   <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
                     👥 Учасники: {activity.participants_min || 1}-{activity.participants_max || '∞'}
                   </span>
                 )}
 
-                {/* 5. Потрібно аніматорів */}
-                {(activity.animators_min || activity.animators_max) && (
+                {/* 🟢 ОНОВЛЕНО: Тільки мінімум аніматорів */}
+                {activity.animators_min && (
                   <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
-                    🧑‍💼 Аніматори: {activity.animators_min || 1}-{activity.animators_max || '...'}
+                    🧑‍💼 Необхідно аніматорів: {activity.animators_min}
                   </span>
                 )}
 
-                {/* 6. Наявність реквізиту */}
                 {activity.has_equipment && (
                   <span className="bg-pink-50 text-pink-600 border border-pink-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
                     🎒 Є реквізит
@@ -330,6 +335,32 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               </div>
             </Link>
           ))}
+
+          {/* 🟢 КНОПКИ ПАГІНАЦІЇ ВНИЗУ */}
+          {!isLoading && totalPages > 1 && (
+            <div className="flex justify-center items-center gap-4 mt-10">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-5 py-3 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm flex items-center gap-2"
+              >
+                ← Назад
+              </button>
+              
+              <span className="font-extrabold text-gray-500">
+                {currentPage} / {totalPages}
+              </span>
+
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-5 py-3 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm flex items-center gap-2"
+              >
+                Вперед →
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
 
