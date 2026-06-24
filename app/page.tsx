@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { supabase } from "@/lib/supabase"; // Переконайся, що шлях правильний
+import { supabase } from "@/lib/supabase";
 
 const categories = [
   { id: "vechory", title: "Вечори", icon: <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" /></svg> },
@@ -32,6 +32,9 @@ const carouselImages = [
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  // 🟢 ДОДАНО: Стан для мобільного меню
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -65,11 +68,10 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#FDB8D3] flex flex-col relative overflow-hidden font-sans">
 
-      {/* Шапка з кнопками */}
-      <nav className="absolute top-0 w-full p-6 lg:px-12 flex justify-end items-center gap-4 z-50">
+      {/* 🟢 ДЕСКТОПНА ШАПКА (Хвається на телефонах через hidden md:flex) */}
+      <nav className="absolute top-0 w-full p-6 lg:px-12 hidden md:flex justify-end items-center gap-4 z-50">
         <button 
           onClick={() => setIsContactModalOpen(true)}
-          // 🟢 ТУТ ЗМІНИЛИ ТЕКСТ
           className="bg-white/20 backdrop-blur-sm border-2 border-white text-white font-bold px-6 py-2.5 rounded-full hover:bg-white hover:text-[#FDB8D3] transition-all text-sm md:text-base"
         >
           Зв'язок та пропозиції
@@ -86,6 +88,42 @@ export default function Home() {
         </Link>
       </nav>
 
+      {/* 🟢 МОБІЛЬНА ШАПКА З ГАМБУРГЕРОМ (Хвається на комп'ютерах через md:hidden) */}
+      <nav className="absolute top-0 w-full p-4 flex justify-end md:hidden z-50">
+        <button 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="bg-white/20 backdrop-blur-md border border-white/40 text-white p-3 rounded-2xl flex items-center justify-center shadow-lg transition-all active:scale-95"
+        >
+          {isMobileMenuOpen ? (
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          ) : (
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+          )}
+        </button>
+      </nav>
+
+      {/* 🟢 ВИПАДАЮЧЕ МОБІЛЬНЕ МЕНЮ */}
+      {isMobileMenuOpen && (
+        <div className="absolute top-20 right-4 left-4 bg-white/95 backdrop-blur-xl p-5 rounded-3xl shadow-2xl flex flex-col gap-4 z-[60] md:hidden border border-pink-100">
+          <button 
+            onClick={() => { setIsContactModalOpen(true); setIsMobileMenuOpen(false); }}
+            className="w-full bg-pink-50 text-[#FDB8D3] font-extrabold px-5 py-4 rounded-2xl hover:bg-pink-100 transition-all text-left flex items-center gap-3 text-lg"
+          >
+            💬 Зв'язок та пропозиції
+          </button>
+          <Link href="/propose" onClick={() => setIsMobileMenuOpen(false)}>
+            <button className="w-full bg-pink-50 text-[#FDB8D3] font-extrabold px-5 py-4 rounded-2xl hover:bg-pink-100 transition-all text-left flex items-center gap-3 text-lg">
+              ➕ Запропонувати гру
+            </button>
+          </Link>
+          <Link href="/school" onClick={() => setIsMobileMenuOpen(false)}>
+            <button className="w-full bg-[#44bdf3] text-white font-extrabold px-5 py-4 rounded-2xl hover:bg-[#32b0e6] transition-all text-left flex items-center gap-3 shadow-md text-lg mt-2">
+              🎓 Школа аніматора
+            </button>
+          </Link>
+        </div>
+      )}
+
       {/* Модальне вікно зв'язку */}
       {isContactModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -99,7 +137,6 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* 🟢 ТУТ ТЕЖ ОНОВИЛИ ЗАГОЛОВОК */}
                 <h2 className="text-2xl font-extrabold text-gray-800">Зв'язок з автором</h2>
                 <p className="text-gray-500 text-sm">Ваші ідеї роблять цей сайт кращим!</p>
                 
@@ -119,7 +156,7 @@ export default function Home() {
                     onChange={(e) => setMessage(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-[#44bdf3] outline-none" 
                     rows={4} 
-                    placeholder="Форма, на жаль, поки не працює, але ми обов'язково її доробимо! Поки можете писати свої пропозиції у Telegram або на пошту: nazar18derevoriz@gmail.com"
+                    placeholder="Що б ви хотіли змінити чи додати?"
                   />
                   <button 
                     disabled={isSubmitting || !message.trim()}
@@ -135,54 +172,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Модальне вікно зв'язку */}
-      {isContactModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative">
-            <button onClick={() => setIsContactModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
-            
-            {success ? (
-              <div className="text-center py-10">
-                <div className="text-5xl mb-4">✅</div>
-                <h3 className="text-xl font-bold text-gray-800">Дякуємо за повідомлення!</h3>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <h2 className="text-2xl font-extrabold text-gray-800">Зв'язок з автором</h2>
-                
-                <div className="space-y-3">
-                  <a href="https://t.me/thesilentist" target="_blank" className="flex items-center gap-3 p-3 bg-blue-50 text-blue-600 rounded-xl font-bold hover:bg-blue-100 transition-colors">
-                    <span>📱 Telegram: @thesilentist</span>
-                  </a>
-                  <div className="p-3 bg-gray-50 text-gray-700 rounded-xl font-bold">
-                    📞 Телефон: 093 823 6241
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <label className="block text-gray-700 font-bold mb-2">Надіслати ідею чи пропозицію:</label>
-                  <textarea 
-                    value={message} 
-                    onChange={(e) => setMessage(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-[#44bdf3] outline-none" 
-                    rows={4} 
-                    placeholder="Форма, на жаль, поки не працює, але ми обов'язково її доробимо! Поки можете писати свої пропозиції у Telegram або на пошту: nazar18derevoriz@gmail.com"
-                  />
-                  <button 
-                    disabled={isSubmitting || !message.trim()}
-                    onClick={handleSendFeedback}
-                    className="w-full mt-4 bg-[#44bdf3] text-white font-bold py-3 rounded-xl hover:bg-[#32b0e6] transition-colors disabled:opacity-50"
-                  >
-                    {isSubmitting ? "Відправка..." : "Надіслати"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Головна секція (без змін) */}
+      {/* Головна секція */}
       <div className="flex-grow flex flex-col lg:flex-row items-center justify-between p-8 lg:p-16 pb-32 gap-10 mt-16 lg:mt-0">
         <div className="w-full lg:w-5/12 z-10 space-y-6">
           <h1 className="text-6xl md:text-8xl font-extrabold text-white drop-shadow-sm leading-tight" style={{ fontFamily: 'system-ui, sans-serif' }}>
@@ -216,12 +206,19 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Панель категорій */}
-      <div className="w-full bg-[#44bdf3] absolute bottom-0 flex overflow-x-auto shadow-2xl z-20" style={{ scrollbarWidth: 'none' }}>
+      {/* 🟢 ОНОВЛЕНА ПАНЕЛЬ КАТЕГОРІЙ */}
+      {/* Додано snap-x для свайпів і прибрано розтягування на мобільних */}
+      <div className="w-full bg-[#44bdf3] absolute bottom-0 flex overflow-x-auto shadow-2xl z-20 snap-x snap-mandatory pb-safe" style={{ scrollbarWidth: 'none' }}>
         {categories.map((cat) => (
-          <Link href={`/category/${cat.id}`} key={cat.id} className="flex-1 min-w-fit px-6 py-4 flex flex-row items-center justify-center gap-3 hover:bg-[#32b0e6] transition-colors border-r border-[#32b0e6] last:border-r-0 group">
-            <div className="group-hover:scale-110 transition-transform flex items-center justify-center">{cat.icon}</div>
-            <span className="font-extrabold text-white text-center uppercase tracking-wide text-lg md:text-xl whitespace-nowrap drop-shadow-sm">
+          <Link 
+            href={`/category/${cat.id}`} 
+            key={cat.id} 
+            className="snap-start shrink-0 min-w-[160px] md:min-w-0 md:flex-1 px-4 py-4 flex flex-col md:flex-row items-center justify-center gap-2 hover:bg-[#32b0e6] transition-colors border-r border-[#32b0e6] last:border-r-0 group"
+          >
+            <div className="group-hover:scale-110 transition-transform flex items-center justify-center shrink-0">
+              {cat.icon}
+            </div>
+            <span className="font-extrabold text-white text-center uppercase tracking-wide text-sm md:text-xl whitespace-nowrap drop-shadow-sm">
               {cat.title}
             </span>
           </Link>

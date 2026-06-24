@@ -24,11 +24,11 @@ const locationsMap: Record<string, string> = {
 export default function CategoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const [activities, setActivities] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🟢 ДОДАНО: Стани для пагінації
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -79,15 +79,15 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
   const handleApplyFilters = () => {
     setAppliedFilters(filterInputs);
-    setCurrentPage(1); // 🟢 Скидаємо на першу сторінку при новому пошуку
+    setCurrentPage(1); 
+    setIsFiltersOpen(false); 
   };
 
   const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setItemsPerPage(Number(e.target.value));
-    setCurrentPage(1); // 🟢 Скидаємо на першу сторінку при зміні ліміту
+    setCurrentPage(1); 
   };
 
-  // Фільтруємо всі ігри
   const displayedActivities = activities.filter(a => {
     if (appliedFilters.searchTitle) {
       if (!a.title.toLowerCase().includes(appliedFilters.searchTitle.toLowerCase())) return false;
@@ -126,7 +126,6 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
     return true;
   });
 
-  // 🟢 ОБРАХУНОК ПАГІНАЦІЇ
   const totalPages = Math.ceil(displayedActivities.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedActivities = displayedActivities.slice(startIndex, startIndex + itemsPerPage);
@@ -137,7 +136,7 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
       {/* Шапка сторінки */}
       <div className="bg-[#FDB8D3] p-6 lg:p-10 text-white shadow-md relative z-50">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="w-full md:w-1/3">
+          <div className="w-full md:w-1/3 flex justify-center md:justify-start">
             <Link href="/" className="text-white/80 hover:text-white font-bold flex items-center gap-2 transition-colors w-fit">
               ← На головну
             </Link>
@@ -145,7 +144,8 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
           <h1 className="text-3xl md:text-5xl font-extrabold uppercase tracking-wide text-center w-full md:w-1/3">
             {title}
           </h1>
-          <div className="w-full md:w-1/3 flex justify-end relative">
+          
+          <div className="w-full md:w-1/3 flex justify-center md:justify-end relative">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="bg-white/20 hover:bg-white/30 border border-white/50 text-white px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 backdrop-blur-sm"
@@ -155,7 +155,7 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
             </button>
 
             {isMenuOpen && (
-              <div className="absolute top-full right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden text-gray-800 flex flex-col">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden text-gray-800 flex flex-col z-[100]">
                 {categoriesList.map((cat) => {
                   const isActive = cat.id === id;
                   if (isActive) {
@@ -178,69 +178,77 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto mt-10 px-6 flex flex-col lg:flex-row gap-8 relative z-10 flex-grow w-full mb-16">
+      <div className="max-w-7xl mx-auto mt-6 lg:mt-10 px-4 lg:px-6 flex flex-col lg:flex-row gap-6 lg:gap-8 relative z-10 flex-grow w-full mb-16">
 
         {/* ЛІВА КОЛОНКА: Панель фільтрів */}
         <aside className="w-full lg:w-1/4 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-fit">
-          <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">Фільтри пошуку</h2>
-          <div className="space-y-4 text-gray-600">
-
-            <div className="space-y-1 pb-2 border-b border-gray-100">
-              <label className="block text-sm font-bold text-gray-700">🔍 Пошук за назвою</label>
-              <input type="text" placeholder="Введіть назву гри..." value={filterInputs.searchTitle} onChange={e => setFilterInputs({ ...filterInputs, searchTitle: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
-            </div>
-
-            <div className="space-y-1 pt-2">
-              <label className="block text-sm font-bold text-gray-700">📍 Локація</label>
-              <select value={filterInputs.location} onChange={e => setFilterInputs({ ...filterInputs, location: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
-                <option value="any">Будь-де (Всі локації)</option>
-                <option value="indoor">В приміщенні</option>
-                <option value="outdoor">Надворі</option>
-                <option value="water">Біля води</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-sm font-bold text-gray-700">🎂 Вік дитини (років)</label>
-              <input type="number" placeholder="Наприклад: 10" value={filterInputs.age} onChange={e => setFilterInputs({ ...filterInputs, age: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-sm font-bold text-gray-700">⏳ Скільки маєте часу (хв)</label>
-              <input type="number" placeholder="Наприклад: 45" value={filterInputs.duration} onChange={e => setFilterInputs({ ...filterInputs, duration: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-sm font-bold text-gray-700">👥 Кількість учасників</label>
-              <input type="number" placeholder="Наприклад: 25" value={filterInputs.participants} onChange={e => setFilterInputs({ ...filterInputs, participants: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-sm font-bold text-gray-700">🧑‍💼 Скільки є аніматорів</label>
-              <input type="number" placeholder="Наприклад: 3" value={filterInputs.animators} onChange={e => setFilterInputs({ ...filterInputs, animators: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
-            </div>
-
-            <div className="space-y-1 pt-1">
-              <label className="block text-sm font-bold text-gray-700">🎒 Наявність реквізиту</label>
-              <select value={filterInputs.equipmentStatus} onChange={e => setFilterInputs({ ...filterInputs, equipmentStatus: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
-                <option value="any">Не має значення</option>
-                <option value="yes">Тільки з реквізитом</option>
-                <option value="no">Без реквізиту</option>
-              </select>
-            </div>
-
-          </div>
-          <button onClick={handleApplyFilters} className="mt-6 w-full bg-[#E0F2FE] text-[#60a5fa] font-bold py-3 rounded-xl hover:bg-[#bae6fd] transition-colors shadow-sm">
-            Застосувати
+          <button 
+            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+            className="w-full flex justify-between items-center lg:pointer-events-none"
+          >
+            <h2 className="text-xl font-bold text-gray-800 lg:border-b lg:border-gray-100 lg:pb-4 w-full text-left">Фільтри пошуку</h2>
+            <svg className={`w-6 h-6 text-gray-500 lg:hidden transition-transform duration-300 ${isFiltersOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
+
+          <div className={`mt-6 ${isFiltersOpen ? 'block' : 'hidden'} lg:block`}>
+            <div className="space-y-4 text-gray-600">
+
+              <div className="space-y-1 pb-2 border-b border-gray-100">
+                <label className="block text-sm font-bold text-gray-700">🔍 Пошук за назвою</label>
+                <input type="text" placeholder="Введіть назву гри..." value={filterInputs.searchTitle} onChange={e => setFilterInputs({ ...filterInputs, searchTitle: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              </div>
+
+              <div className="space-y-1 pt-2">
+                <label className="block text-sm font-bold text-gray-700">📍 Локація</label>
+                <select value={filterInputs.location} onChange={e => setFilterInputs({ ...filterInputs, location: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
+                  <option value="any">Будь-де (Всі локації)</option>
+                  <option value="indoor">В приміщенні</option>
+                  <option value="outdoor">Надворі</option>
+                  <option value="water">Біля води</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-sm font-bold text-gray-700">🎂 Вік дитини (років)</label>
+                <input type="number" placeholder="Наприклад: 10" value={filterInputs.age} onChange={e => setFilterInputs({ ...filterInputs, age: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-sm font-bold text-gray-700">⏳ Скільки маєте часу (хв)</label>
+                <input type="number" placeholder="Наприклад: 45" value={filterInputs.duration} onChange={e => setFilterInputs({ ...filterInputs, duration: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-sm font-bold text-gray-700">👥 Кількість учасників</label>
+                <input type="number" placeholder="Наприклад: 25" value={filterInputs.participants} onChange={e => setFilterInputs({ ...filterInputs, participants: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-sm font-bold text-gray-700">🧑‍💼 Скільки є аніматорів</label>
+                <input type="number" placeholder="Наприклад: 3" value={filterInputs.animators} onChange={e => setFilterInputs({ ...filterInputs, animators: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              </div>
+
+              <div className="space-y-1 pt-1">
+                <label className="block text-sm font-bold text-gray-700">🎒 Наявність реквізиту</label>
+                <select value={filterInputs.equipmentStatus} onChange={e => setFilterInputs({ ...filterInputs, equipmentStatus: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]">
+                  <option value="any">Не має значення</option>
+                  <option value="yes">Тільки з реквізитом</option>
+                  <option value="no">Без реквізиту</option>
+                </select>
+              </div>
+
+            </div>
+            <button onClick={handleApplyFilters} className="mt-6 w-full bg-[#E0F2FE] text-[#60a5fa] font-bold py-3 rounded-xl hover:bg-[#bae6fd] transition-colors shadow-sm">
+              Застосувати
+            </button>
+          </div>
         </aside>
 
-        {/* ПРАВА КОЛОНКА: Список активностей з Бази Даних */}
+        {/* ПРАВА КОЛОНКА: Список активностей */}
         <div className="w-full lg:w-3/4 space-y-6">
           
-          {/* 🟢 ОНОВЛЕНА ШАПКА З СЕЛЕКТОРОМ ПАГІНАЦІЇ */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4">
-            <h2 className="text-2xl font-bold text-gray-800">
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800">
               Знайдено активностей: {isLoading ? "..." : displayedActivities.length}
             </h2>
             
@@ -262,7 +270,7 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
           {isLoading && (
             <div className="p-10 text-center text-gray-500 font-medium">
-              Шукаємо активності в базі даних...
+              Шукаємо active-ігри в базі даних...
             </div>
           )}
 
@@ -273,23 +281,15 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
             </div>
           )}
 
-          {/* 🟢 ВИВОДИМО ЛИШЕ ОБРІЗАНИЙ МАСИВ (paginatedActivities) */}
           {!isLoading && paginatedActivities.map((activity) => (
             <Link
               href={`/activity/${activity.id}`}
               key={activity.id}
               className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 hover:shadow-md transition-all cursor-pointer border-l-4 border-transparent hover:border-l-[#FDB8D3] block"
             >
+              {/* Шапка картки стала чистою */}
               <div className="flex justify-between items-start">
                 <h3 className="text-2xl font-bold text-gray-900">{activity.title}</h3>
-
-                {activity.location && activity.location.length > 0 && (
-                  <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase shrink-0 ml-4">
-                    {activity.location[0] === 'outdoor' ? 'Надворі' :
-                      activity.location[0] === 'indoor' ? 'Приміщення' :
-                        activity.location[0] === 'water' ? 'Біля води' : activity.location[0]}
-                  </span>
-                )}
               </div>
 
               <p className="text-gray-600 leading-relaxed">{activity.short_description}</p>
@@ -320,23 +320,31 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
                   </span>
                 )}
 
-                {/* 🟢 ОНОВЛЕНО: Тільки мінімум аніматорів */}
                 {activity.animators_min && (
                   <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
                     🧑‍💼 Необхідно аніматорів: {activity.animators_min}
                   </span>
                 )}
 
-                {activity.has_equipment && (
-                  <span className="bg-pink-50 text-pink-600 border border-pink-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
-                    🎒 Є реквізит
+                {/* 🟢 НОВА РОЗУМНА ЛОГІКА ЛОКАЦІЙ (Виводить ВСІ обрані локації окремими плашками) */}
+                {activity.location?.map((loc: string, index: number) => (
+                  <span key={index} className="bg-blue-50 text-blue-600 border border-blue-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                    📍 {loc === 'outdoor' ? 'Надворі' :
+                        loc === 'indoor' ? 'В приміщенні' :
+                        loc === 'water' ? 'Біля води' : loc}
+                  </span>
+                ))}
+
+                {!activity.has_equipment && (
+                  <span className="bg-green-50 text-green-600 border border-green-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                    ✅ Не потрібно реквізиту
                   </span>
                 )}
               </div>
             </Link>
           ))}
 
-          {/* 🟢 КНОПКИ ПАГІНАЦІЇ ВНИЗУ */}
+          {/* Пагінація */}
           {!isLoading && totalPages > 1 && (
             <div className="flex justify-center items-center gap-4 mt-10">
               <button 
@@ -367,12 +375,12 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
       <footer className="bg-white border-t border-gray-200 py-10 px-6">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-center items-center gap-4">
           <Link href="/propose">
-            <button className="bg-[#FDB8D3] text-white font-bold px-8 py-4 rounded-full hover:bg-[#f9a8c8] transition-all text-lg shadow-md">
+            <button className="w-full md:w-auto bg-[#FDB8D3] text-white font-bold px-8 py-4 rounded-full hover:bg-[#f9a8c8] transition-all text-lg shadow-md">
               + Запропонувати активність
             </button>
           </Link>
           <Link href="/school">
-            <button className="bg-[#E0F2FE] text-[#60a5fa] font-bold px-8 py-4 rounded-full hover:bg-[#bae6fd] transition-all text-lg shadow-md">
+            <button className="w-full md:w-auto bg-[#E0F2FE] text-[#60a5fa] font-bold px-8 py-4 rounded-full hover:bg-[#bae6fd] transition-all text-lg shadow-md">
               Записатись на школу аніматора
             </button>
           </Link>
