@@ -1,12 +1,11 @@
-const CACHE_NAME = 'neri-animators-cache-v1';
+const CACHE_NAME = 'neri-animators-cache-v2';
 
-// Файли, які кешуються одразу при першому заході на сайт
+// Файли для миттєвого прекешу
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json'
 ];
 
-// Інсталяція Сервіс-Воркера
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -16,7 +15,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Активація та очищення старого кешу при оновленні додатка
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -32,16 +30,37 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Перехоплення запитів (Fetch) та магія офлайн-режиму
 self.addEventListener('fetch', (event) => {
-  // Кешуємо лише GET запити (сторінки, картинки, дані Supabase)
+  // Працюємо виключно з GET-запитами
   if (event.request.method !== 'GET') return;
 
+  const url = new URL(event.request.url);
+
+  // СТРАТЕГІЯ 1: Для статичних файлів самого коду програми (_next/static, шрифти, іконки)
+  // Використовуємо Cache First (якщо є в кеші — віддаємо миттєво, не турбуючи мережу)
+  if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/')) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(event.request).then((networkResponse) => {
+          if (networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        });
+      })
+    );
+    return;
+  }
+
+  // СТРАТЕГІЯ 2: Для динамічних сторінок категорій та запитів до бази Supabase
+  // Використовуємо Network First (шукаємо в мережі, якщо мережі нема — беремо з кешу)
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // Якщо запит успішний, копіюємо його у кеш
-        if (networkResponse.status === 200) {
+        // Рятуємо запит у кеш, якщо все добре (status 0 потрібен для CORS запитів типу Supabase)
+        if (networkResponse.status === 200 || networkResponse.status === 0) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
@@ -50,13 +69,15 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       })
       .catch(() => {
-        // Якщо сталася помилка (НЕМАЄ ІНТЕРНЕТУ) — шукаємо в кеші
-        return caches.match(event.request).then((cachedResponse) => {
+        // 🔥 ГОЛОВНЕ ВИПРАВЛЕННЯ: додаємо параметр { ignoreVary: true }
+        // Це змушує сервіс-воркер ігнорувати службові заголовки Next.js (RSC, Prefetch)
+        // і повертати сторінку категорії суто за збігом URL адреси
+        return caches.match(event.request, { ignoreVary: true }).then((cachedResponse) => {
           if (cachedResponse) {
             return cachedResponse;
           }
           
-          // Якщо користувач офлайн і намагається відкрити сторінку, яка ще ні разу не відкривалася
+          // Якщо користувач повністю офлайн і намагається відкрити сторінку, де ще ні разу не був
           if (event.request.mode === 'navigate') {
             return caches.match('/');
           }
