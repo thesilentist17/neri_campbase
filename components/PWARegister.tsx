@@ -4,7 +4,8 @@ import { useEffect } from "react";
 
 export default function PWARegister() {
   useEffect(() => {
-    if ("serviceWorker" in navigator && window.workbox === undefined) {
+    // Залишаємо тільки базову перевірку підтримки Service Worker у браузері
+    if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker
           .register("/sw.js")
