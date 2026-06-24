@@ -7,6 +7,9 @@ import { supabase } from "@/lib/supabase";
 import ReactMarkdown from "react-markdown";
 import { toPng } from "html-to-image";
 
+// 🟢 ІМПОРТУЄМО НАШУ НОВУ РОЗУМНУ КНОПКУ ПОШИРЕННЯ
+import ShareButton from "@/components/ShareButton";
+
 const categoriesMap: Record<string, string> = {
   "vechory": "Вечори",
   "katekhyzatsii": "Катехизації",
@@ -29,8 +32,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
   const router = useRouter();
   const [activity, setActivity] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
-  const [isCopied, setIsCopied] = useState(false);
 
   // СТАНИ ДЛЯ ОФЛАЙН ЗБЕРЕЖЕННЯ
   const activityCardRef = useRef<HTMLDivElement>(null);
@@ -54,15 +55,7 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
     fetchActivity();
   }, [id]);
 
-  const handleShare = () => {
-    if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(window.location.href);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    }
-  };
-
-  // Функція для завантаження картинки
+  // Функція для завантаження картинки (офлайн збереження)
   const handleDownloadOffline = async () => {
     if (activityCardRef.current === null) return;
     
@@ -206,31 +199,12 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
                 )}
               </button>
 
-              {/* Кнопка Поділитися */}
-              <button 
-                onClick={handleShare}
-                className={`flex items-center gap-2 border font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-sm ${
-                  isCopied 
-                    ? 'bg-green-50 border-green-200 text-green-600' 
-                    : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700'
-                }`}
-              >
-                {isCopied ? (
-                  <>
-                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>Скопійовано!</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 10.742l4.57 2.286M15.118 9.258l-4.57 2.286M20 5a3 3 0 11-6 0 3 3 0 016 0zm-12 7a3 3 0 11-6 0 3 3 0 016 0zm12 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="hidden sm:inline">Поділитися</span>
-                  </>
-                )}
-              </button>
+              {/* 🟢 КНОПКА ПОДІЛИТИСЯ (Native Web Share API) */}
+              <ShareButton 
+                title={activity.title} 
+                text={activity.short_description} 
+              />
+              
             </div>
           </div>
         </div>
@@ -267,7 +241,7 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
 
             <div className="mb-8">
               <span className={`px-5 py-2 rounded-full font-bold text-base ${activity.has_equipment ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                {activity.has_equipment ? '🎒 Потрібен реквізит' : 'Без реквізиту'}
+                {activity.has_equipment ? '🎒 Потрібен реквізит' : '✅ Без реквізиту'}
               </span>
             </div>
 
