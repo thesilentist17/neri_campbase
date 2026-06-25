@@ -22,6 +22,18 @@ const PREDEFINED_LOCATIONS = [
   { id: "water", title: "Біля води" }
 ];
 
+// 🟢 НОВИЙ СПИСОК ТЕГІВ
+const PREDEFINED_TAGS = [
+  { id: "znayomstvo", title: "Знайомство" },
+  { id: "kryholamy", title: "Криголами" },
+  { id: "rukhlyvi", title: "Рухливі" },
+  { id: "spokiyni", title: "Спокійні" },
+  { id: "lohika", title: "На логіку" },
+  { id: "komandni", title: "Командні" },
+  { id: "tantsyuvalni", title: "Танцювальні" },
+  { id: "voda", title: "З водою" }
+];
+
 export default function AdminPanelPage() {
   // --- АВТОРИЗАЦІЯ ---
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -40,7 +52,7 @@ export default function AdminPanelPage() {
     if (isAuthenticated) {
       fetchActivities();
     }
-  }, [isAuthenticated, activeTab]); // Завантажуємо дані при зміні вкладки
+  }, [isAuthenticated, activeTab]); 
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,16 +90,13 @@ export default function AdminPanelPage() {
     );
   };
 
-  // 🟢 Функція для перемикання кнопок-тегів
   const toggleArrayItem = (id: string, field: string, value: string, currentArray: string[]) => {
     const arr = currentArray || [];
     const newArr = arr.includes(value) ? arr.filter(i => i !== value) : [...arr, value];
     handleUpdateField(id, field, newArr);
   };
 
-  // 🟢 Обробка ручного вводу кастомних категорій/локацій (БЕЗ TRIM)
   const handleCustomArrayInput = (id: string, field: string, inputValue: string, predefinedList: any[], currentArray: string[]) => {
-    // Розбиваємо по комі, але не обрізаємо пробіли під час вводу
     const customVals = inputValue.split(',').filter(Boolean);
     const standardVals = (currentArray || []).filter(item => predefinedList.some(p => p.id === item));
     const merged = Array.from(new Set([...standardVals, ...customVals]));
@@ -119,7 +128,8 @@ export default function AdminPanelPage() {
         has_equipment: activityToPublish.has_equipment,
         equipment: activityToPublish.equipment,
         category_ids: activityToPublish.category_ids?.map((c: string) => c.trim()).filter(Boolean),
-        location: activityToPublish.location?.map((l: string) => l.trim()).filter(Boolean)
+        location: activityToPublish.location?.map((l: string) => l.trim()).filter(Boolean),
+        tags: activityToPublish.tags?.map((t: string) => t.trim()).filter(Boolean) // 🟢 ЗБЕРІГАЄМО ТЕГИ
       })
       .eq('id', id);
 
@@ -146,7 +156,6 @@ export default function AdminPanelPage() {
     }
   }
 
-  // 🟢 Функція відновлення відхиленої гри
   async function handleRestore(id: string) {
     const confirmRestore = window.confirm("Відновити цю гру? Вона повернеться у список 'Очікують'.");
     if (!confirmRestore) return;
@@ -222,7 +231,6 @@ export default function AdminPanelPage() {
 
       <div className="max-w-5xl mx-auto mt-8 px-6">
         
-        {/* 🟢 ПАНЕЛЬ ВКЛАДОК (TABS) */}
         <div className="flex gap-4 mb-8 border-b border-gray-200 pb-4">
           <button 
             onClick={() => setActiveTab('pending')}
@@ -268,7 +276,6 @@ export default function AdminPanelPage() {
             {pendingActivities.map((activity) => (
               <div key={activity.id} className={`bg-white p-8 rounded-3xl shadow-md border-l-8 relative ${activeTab === 'rejected' ? 'border-red-400 opacity-80 hover:opacity-100 transition-opacity' : 'border-yellow-400'}`}>
 
-                {/* ШАПКА КАРТКИ */}
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-6">
                   <div className="w-full">
                     {activity.status === 'pending' && <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full uppercase mb-3 inline-block">✨ Нова активність</span>}
@@ -302,7 +309,6 @@ export default function AdminPanelPage() {
                   </div>
                 </div>
 
-                {/* 🟢 РЕДАГУВАННЯ ОСНОВНИХ ТЕКСТІВ */}
                 <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-6 space-y-6">
                   <div>
                     <h4 className="font-bold text-gray-700 mb-2 text-sm uppercase">Короткий опис:</h4>
@@ -323,7 +329,6 @@ export default function AdminPanelPage() {
                   </div>
                 </div>
 
-                {/* 🟢 РЕДАГУВАННЯ ЧИСЛОВИХ ПАРАМЕТРІВ (ТЕПЕР 5 КОЛОНОК) */}
                 <h4 className="font-bold text-gray-700 mb-4 text-sm uppercase px-2">Технічні параметри:</h4>
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6 px-2">
                   <div className="bg-white p-3 rounded-xl border border-gray-200">
@@ -344,7 +349,6 @@ export default function AdminPanelPage() {
                     </div>
                   </div>
 
-                  {/* 🟢 НОВЕ ПОЛЕ: ПІДГОТОВКА */}
                   <div className="bg-white p-3 rounded-xl border border-gray-200">
                     <span className="text-xs text-gray-500 font-bold uppercase block mb-1">Підготовка (хв)</span>
                     <div className="flex items-center gap-2 h-full pb-1">
@@ -371,8 +375,8 @@ export default function AdminPanelPage() {
                   </div>
                 </div>
 
-                {/* 🟢 КАТЕГОРІЇ, ЛОКАЦІЇ ТА РЕКВІЗИТ (З КНОПКАМИ) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-2 mb-6">
+                {/* 🟢 КАТЕГОРІЇ, ЛОКАЦІЇ ТА ТЕГИ (3 КОЛОНКИ ЗАМІСТЬ 2) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-2 mb-6">
                   
                   {/* КАТЕГОРІЇ */}
                   <div className="bg-white border border-gray-200 p-4 rounded-xl">
@@ -426,7 +430,34 @@ export default function AdminPanelPage() {
                     />
                   </div>
 
-                  <div className="md:col-span-2 bg-white p-4 border border-gray-200 rounded-xl flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  {/* 🟢 ТЕГИ (НОВИЙ БЛОК) */}
+                  <div className="bg-white border border-gray-200 p-4 rounded-xl">
+                    <span className="text-xs text-gray-500 font-bold uppercase block mb-3">Хештеги (Настрій):</span>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {PREDEFINED_TAGS.map(tag => {
+                        const isSelected = (activity.tags || []).includes(tag.id);
+                        return (
+                          <button
+                            key={tag.id}
+                            onClick={() => toggleArrayItem(activity.id, 'tags', tag.id, activity.tags)}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${isSelected ? 'bg-indigo-100 border-indigo-200 text-indigo-800 shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                          >
+                            {isSelected ? '✓ ' : '+ '}#{tag.title}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <input
+                      type="text"
+                      value={(activity.tags || []).filter((id: string) => !PREDEFINED_TAGS.find(t => t.id === id)).join(', ')}
+                      onChange={(e) => handleCustomArrayInput(activity.id, 'tags', e.target.value, PREDEFINED_TAGS, activity.tags)}
+                      className="w-full bg-gray-50 p-2 text-sm border border-gray-200 rounded-lg focus:border-indigo-400 focus:outline-none"
+                      placeholder="Кастомні теги (через кому)..."
+                    />
+                  </div>
+
+                  {/* РЕКВІЗИТ (Займає тепер всю ширину - 3 колонки) */}
+                  <div className="md:col-span-3 bg-white p-4 border border-gray-200 rounded-xl flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                     <label className="flex items-center gap-2 cursor-pointer font-bold text-gray-700 whitespace-nowrap">
                       <input
                         type="checkbox"
@@ -448,7 +479,6 @@ export default function AdminPanelPage() {
                   </div>
                 </div>
 
-                {/* БЛОК ПРИКРІПЛЕНИХ МАТЕРІАЛІВ */}
                 {(activity.image_urls?.length > 0 || activity.file_urls?.length > 0) && (
                   <div className="bg-white p-4 rounded-xl border border-gray-200 mx-2">
                     <h4 className="font-bold text-gray-700 mb-2 text-sm uppercase">📎 Прикріплені матеріали:</h4>
