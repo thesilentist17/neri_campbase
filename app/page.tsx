@@ -32,7 +32,6 @@ const carouselImages = [
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  // 🟢 ДОДАНО: Стан для мобільного меню
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const [message, setMessage] = useState("");
@@ -68,7 +67,6 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#FDB8D3] flex flex-col relative overflow-hidden font-sans">
 
-      {/* 🟢 ДЕСКТОПНА ШАПКА (Хвається на телефонах через hidden md:flex) */}
       <nav className="absolute top-0 w-full p-6 lg:px-12 hidden md:flex justify-end items-center gap-4 z-50">
         <button 
           onClick={() => setIsContactModalOpen(true)}
@@ -88,7 +86,6 @@ export default function Home() {
         </Link>
       </nav>
 
-      {/* 🟢 МОБІЛЬНА ШАПКА З ГАМБУРГЕРОМ (Хвається на комп'ютерах через md:hidden) */}
       <nav className="absolute top-0 w-full p-4 flex justify-end md:hidden z-50">
         <button 
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -102,7 +99,6 @@ export default function Home() {
         </button>
       </nav>
 
-      {/* 🟢 ВИПАДАЮЧЕ МОБІЛЬНЕ МЕНЮ */}
       {isMobileMenuOpen && (
         <div className="absolute top-20 right-4 left-4 bg-white/95 backdrop-blur-xl p-5 rounded-3xl shadow-2xl flex flex-col gap-4 z-[60] md:hidden border border-pink-100">
           <button 
@@ -124,7 +120,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Модальне вікно зв'язку */}
       {isContactModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative">
@@ -172,7 +167,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Головна секція */}
       <div className="flex-grow flex flex-col lg:flex-row items-center justify-between p-8 lg:p-16 pb-32 gap-10 mt-16 lg:mt-0">
         <div className="w-full lg:w-5/12 z-10 space-y-6">
           <h1 className="text-6xl md:text-8xl font-extrabold text-white drop-shadow-sm leading-tight" style={{ fontFamily: 'system-ui, sans-serif' }}>
@@ -207,18 +201,18 @@ export default function Home() {
       </div>
 
       {/* 🟢 ОНОВЛЕНА ПАНЕЛЬ КАТЕГОРІЙ */}
-      {/* Додано snap-x для свайпів і прибрано розтягування на мобільних */}
       <div className="w-full bg-[#44bdf3] absolute bottom-0 flex overflow-x-auto shadow-2xl z-20 snap-x snap-mandatory pb-safe" style={{ scrollbarWidth: 'none' }}>
         {categories.map((cat) => (
           <Link 
             href={`/category/${cat.id}`} 
             key={cat.id} 
-            className="snap-start shrink-0 min-w-[160px] md:min-w-0 md:flex-1 px-4 py-4 flex flex-col md:flex-row items-center justify-center gap-2 hover:bg-[#32b0e6] transition-colors border-r border-[#32b0e6] last:border-r-0 group"
+            // 🟢 ВИПРАВЛЕННЯ: змінено md:min-w-0 md:flex-1 на xl:min-w-0 xl:flex-1
+            className="snap-start shrink-0 min-w-[130px] sm:min-w-[160px] xl:min-w-0 xl:flex-1 px-2 sm:px-4 py-4 flex flex-col xl:flex-row items-center justify-center gap-2 hover:bg-[#32b0e6] transition-colors border-r border-[#32b0e6] last:border-r-0 group"
           >
             <div className="group-hover:scale-110 transition-transform flex items-center justify-center shrink-0">
               {cat.icon}
             </div>
-            <span className="font-extrabold text-white text-center uppercase tracking-wide text-sm md:text-xl whitespace-nowrap drop-shadow-sm">
+            <span className="font-extrabold text-white text-center uppercase tracking-wide text-xs sm:text-sm xl:text-lg whitespace-nowrap drop-shadow-sm">
               {cat.title}
             </span>
           </Link>
