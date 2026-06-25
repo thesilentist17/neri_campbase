@@ -135,7 +135,8 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
       .insert([{
         activity_id: id,
         author_name: newCommentName,
-        content: newCommentText
+        content: newCommentText,
+        created_at: new Date().toISOString() // 🟢 ВИПРАВЛЕННЯ: Явно генеруємо і передаємо поточний час
       }])
       .select();
 
