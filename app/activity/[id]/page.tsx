@@ -27,6 +27,17 @@ const locationsMap: Record<string, string> = {
   "water": "Біля води"
 };
 
+const tagsMap: Record<string, string> = {
+  "znayomstvo": "Знайомство",
+  "kryholamy": "Криголами",
+  "rukhlyvi": "Рухливі",
+  "spokiyni": "Спокійні",
+  "lohika": "На логіку",
+  "komandni": "Командні",
+  "tantsyuvalni": "Танцювальні",
+  "voda": "З водою"
+};
+
 export default function ActivityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -228,6 +239,13 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
               {activity.location?.map((loc: string, index: number) => (
                 <span key={`loc-${index}`} className="bg-gray-100 text-gray-700 px-5 py-2 rounded-full font-bold text-base">
                   📍 {locationsMap[loc] || loc}
+                </span>
+              ))}
+
+              {/* 🟢 НОВИЙ БЛОК: Вивід Хештегів */}
+              {activity.tags?.map((tagId: string, index: number) => (
+                <span key={`tag-${index}`} className="bg-indigo-50 text-indigo-700 border border-indigo-100 px-5 py-2 rounded-full font-bold text-base shadow-sm">
+                  #{tagsMap[tagId] || tagId}
                 </span>
               ))}
 

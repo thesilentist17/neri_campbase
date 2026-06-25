@@ -21,12 +21,24 @@ const locationsMap: Record<string, string> = {
   "water": "Біля води"
 };
 
+// 🟢 НАШІ ТЕГИ
+const tagsMap: Record<string, string> = {
+  "znayomstvo": "Знайомство",
+  "kryholamy": "Криголами",
+  "rukhlyvi": "Рухливі",
+  "spokiyni": "Спокійні",
+  "lohika": "На логіку",
+  "komandni": "Командні",
+  "tantsyuvalni": "Танцювальні",
+  "voda": "З водою"
+};
+
+const tagsList = Object.keys(tagsMap).map(key => ({ id: key, title: tagsMap[key] }));
+
 export default function CategoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-
-  // 🟢 НОВИЙ СТАН: для кнопки "Вгору"
   const [showTopBtn, setShowTopBtn] = useState(false);
 
   const [activities, setActivities] = useState<any[]>([]);
@@ -37,6 +49,7 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
   
   const [showDetails, setShowDetails] = useState(true);
 
+  // 🟢 ДОДАЛИ МАСИВ ТЕГІВ ДО ФІЛЬТРІВ
   const [filterInputs, setFilterInputs] = useState({
     searchTitle: "",
     age: "",
@@ -44,7 +57,8 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
     participants: "",
     animators: "",
     equipmentStatus: "any",
-    location: "any"
+    location: "any",
+    tags: [] as string[]
   });
 
   const [appliedFilters, setAppliedFilters] = useState({
@@ -54,13 +68,13 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
     participants: "",
     animators: "",
     equipmentStatus: "any",
-    location: "any"
+    location: "any",
+    tags: [] as string[]
   });
 
   const currentCategory = categoriesList.find(c => c.id === id);
   const title = currentCategory ? currentCategory.title : "Категорія не знайдена";
 
-  // 🟢 СЛУХАЧ СКРОЛУ ДЛЯ КНОПКИ "ВГОРУ"
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 400) {
@@ -99,7 +113,6 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
     setAppliedFilters(filterInputs);
     setCurrentPage(1); 
     setIsFiltersOpen(false); 
-    // Після фільтрації також зручно підкинути користувача вгору списку
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -110,6 +123,16 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // 🟢 ФУНКЦІЯ ПЕРЕМИКАННЯ ТЕГІВ У ФІЛЬТРІ
+  const handleTagToggle = (tagId: string) => {
+    setFilterInputs(prev => ({
+      ...prev,
+      tags: prev.tags.includes(tagId) 
+        ? prev.tags.filter(t => t !== tagId) 
+        : [...prev.tags, tagId]
+    }));
   };
 
   const displayedActivities = activities.filter(a => {
@@ -140,6 +163,13 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
     if (appliedFilters.location !== "any") {
       if (!a.location || !a.location.includes(appliedFilters.location)) return false;
     }
+    // 🟢 ЛОГІКА ФІЛЬТРАЦІЇ ЗА ТЕГАМИ (шукаємо ігри, які містять ВСІ обрані теги)
+    if (appliedFilters.tags.length > 0) {
+      if (!a.tags || a.tags.length === 0) return false;
+      const hasAllTags = appliedFilters.tags.every(t => a.tags.includes(t));
+      if (!hasAllTags) return false;
+    }
+
     return true;
   });
 
@@ -196,8 +226,6 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
       <div className="max-w-7xl mx-auto mt-6 lg:mt-10 px-4 lg:px-6 flex flex-col lg:flex-row gap-6 lg:gap-8 relative z-10 flex-grow w-full mb-16 items-start">
 
-        {/* 🟢 ЛИПКІ ФІЛЬТРИ (Sticky Header) */}
-        {/* Додано sticky, top-4, z-40 та max-height зі скролом для безпеки на телефонах */}
         <aside 
           className="w-full lg:w-1/4 bg-white p-5 sm:p-6 rounded-3xl shadow-lg border border-gray-100 sticky top-4 z-40 transition-all overflow-y-auto"
           style={{ maxHeight: 'calc(100vh - 2rem)', scrollbarWidth: 'none' }}
@@ -216,6 +244,27 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               <div className="space-y-1 pb-2 border-b border-gray-100">
                 <label className="block text-sm font-bold text-gray-700">🔍 Пошук за назвою</label>
                 <input type="text" placeholder="Введіть назву гри..." value={filterInputs.searchTitle} onChange={e => setFilterInputs({ ...filterInputs, searchTitle: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
+              </div>
+
+              {/* 🟢 БЛОК ФІЛЬТРАЦІЇ ЗА ТЕГАМИ */}
+              <div className="space-y-2 pt-2 border-b border-gray-100 pb-4">
+                <label className="block text-sm font-bold text-gray-700">🏷️ Хештеги (настрій)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {tagsList.map(tag => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => handleTagToggle(tag.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                        filterInputs.tags.includes(tag.id)
+                          ? 'bg-indigo-100 text-indigo-800 border-indigo-200'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      #{tag.title}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="space-y-1 pt-2">
@@ -264,7 +313,6 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
           </div>
         </aside>
 
-        {/* ПРАВА КОЛОНКА */}
         <div className="w-full lg:w-3/4 space-y-6">
           
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-4 gap-4">
@@ -304,7 +352,6 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
             )}
           </div>
 
-          {/* 🟢 СКЕЛЕТИ (Skeleton Loaders) ЗАМІСТЬ ТЕКСТУ */}
           {isLoading && (
             <div className="space-y-6">
               {[1, 2, 3].map((n) => (
@@ -342,6 +389,10 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
             >
               <div className="flex justify-between items-start">
                 <h3 className="text-2xl font-bold text-gray-900">{activity.title}</h3>
+                {/* 🟢 КІЛЬКІСТЬ ПЕРЕГЛЯДІВ В КУТКУ КАРТКИ */}
+                <span className="text-sm font-bold text-gray-400 flex items-center gap-1.5 shrink-0 mt-1 bg-gray-50 px-2.5 py-1 rounded-lg">
+                  👁️ {activity.views || 0}
+                </span>
               </div>
 
               <p className="text-gray-600 leading-relaxed">{activity.short_description}</p>
@@ -349,6 +400,13 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               {showDetails && (
                 <div className="flex flex-wrap gap-2 mt-2 pt-3 border-t border-gray-50">
                   
+                  {/* 🟢 ВИВІД ХЕШТЕГІВ НА КАРТЦІ */}
+                  {activity.tags?.map((tagId: string, index: number) => (
+                    <span key={`tag-${index}`} className="bg-indigo-50 text-indigo-600 border border-indigo-100 text-sm px-3 py-1 rounded-lg font-bold flex items-center gap-1.5">
+                      #{tagsMap[tagId] || tagId}
+                    </span>
+                  ))}
+
                   {(activity.age_min || activity.age_max) && (
                     <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
                       🎂 Вік: {activity.age_min || 0}-{activity.age_max || '18+'} р.
@@ -445,7 +503,6 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
         </div>
       </footer>
 
-      {/* 🟢 ПЛАВАЮЧА КНОПКА "ВГОРУ" */}
       <button
         onClick={scrollToTop}
         className={`fixed bottom-6 right-6 md:bottom-10 md:right-10 p-4 rounded-full bg-[#44bdf3] text-white shadow-2xl transition-all duration-300 z-50 hover:bg-[#32b0e6] hover:scale-110 active:scale-95 ${
