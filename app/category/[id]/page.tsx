@@ -26,11 +26,16 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
+  // 🟢 НОВИЙ СТАН: для кнопки "Вгору"
+  const [showTopBtn, setShowTopBtn] = useState(false);
+
   const [activities, setActivities] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  const [showDetails, setShowDetails] = useState(true);
 
   const [filterInputs, setFilterInputs] = useState({
     searchTitle: "",
@@ -54,6 +59,19 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
   const currentCategory = categoriesList.find(c => c.id === id);
   const title = currentCategory ? currentCategory.title : "Категорія не знайдена";
+
+  // 🟢 СЛУХАЧ СКРОЛУ ДЛЯ КНОПКИ "ВГОРУ"
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 400) {
+        setShowTopBtn(true);
+      } else {
+        setShowTopBtn(false);
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     async function fetchActivities() {
@@ -81,6 +99,8 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
     setAppliedFilters(filterInputs);
     setCurrentPage(1); 
     setIsFiltersOpen(false); 
+    // Після фільтрації також зручно підкинути користувача вгору списку
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -88,41 +108,38 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
     setCurrentPage(1); 
   };
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const displayedActivities = activities.filter(a => {
     if (appliedFilters.searchTitle) {
       if (!a.title.toLowerCase().includes(appliedFilters.searchTitle.toLowerCase())) return false;
     }
-
     if (appliedFilters.age) {
       const val = parseInt(appliedFilters.age);
       if (a.age_min !== null && val < a.age_min) return false;
       if (a.age_max !== null && val > a.age_max) return false;
     }
-
     if (appliedFilters.duration) {
       const val = parseInt(appliedFilters.duration);
       if (a.duration_min !== null && val < a.duration_min) return false;
       if (a.duration_max !== null && val > a.duration_max) return false;
     }
-
     if (appliedFilters.participants) {
       const val = parseInt(appliedFilters.participants);
       if (a.participants_min !== null && val < a.participants_min) return false;
       if (a.participants_max !== null && val > a.participants_max) return false;
     }
-
     if (appliedFilters.animators) {
       const val = parseInt(appliedFilters.animators);
       if (a.animators_min !== null && val < a.animators_min) return false;
     }
-
     if (appliedFilters.equipmentStatus === "yes" && !a.has_equipment) return false;
     if (appliedFilters.equipmentStatus === "no" && a.has_equipment) return false;
-
     if (appliedFilters.location !== "any") {
       if (!a.location || !a.location.includes(appliedFilters.location)) return false;
     }
-
     return true;
   });
 
@@ -131,9 +148,8 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
   const paginatedActivities = displayedActivities.slice(startIndex, startIndex + itemsPerPage);
 
   return (
-    <main className="min-h-screen bg-gray-50 font-sans flex flex-col">
+    <main className="min-h-screen bg-gray-50 font-sans flex flex-col relative">
 
-      {/* Шапка сторінки */}
       <div className="bg-[#FDB8D3] p-6 lg:p-10 text-white shadow-md relative z-50">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="w-full md:w-1/3 flex justify-center md:justify-start">
@@ -178,10 +194,14 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto mt-6 lg:mt-10 px-4 lg:px-6 flex flex-col lg:flex-row gap-6 lg:gap-8 relative z-10 flex-grow w-full mb-16">
+      <div className="max-w-7xl mx-auto mt-6 lg:mt-10 px-4 lg:px-6 flex flex-col lg:flex-row gap-6 lg:gap-8 relative z-10 flex-grow w-full mb-16 items-start">
 
-        {/* ЛІВА КОЛОНКА: Панель фільтрів */}
-        <aside className="w-full lg:w-1/4 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-fit">
+        {/* 🟢 ЛИПКІ ФІЛЬТРИ (Sticky Header) */}
+        {/* Додано sticky, top-4, z-40 та max-height зі скролом для безпеки на телефонах */}
+        <aside 
+          className="w-full lg:w-1/4 bg-white p-5 sm:p-6 rounded-3xl shadow-lg border border-gray-100 sticky top-4 z-40 transition-all overflow-y-auto"
+          style={{ maxHeight: 'calc(100vh - 2rem)', scrollbarWidth: 'none' }}
+        >
           <button 
             onClick={() => setIsFiltersOpen(!isFiltersOpen)}
             className="w-full flex justify-between items-center lg:pointer-events-none"
@@ -244,33 +264,66 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
           </div>
         </aside>
 
-        {/* ПРАВА КОЛОНКА: Список активностей */}
+        {/* ПРАВА КОЛОНКА */}
         <div className="w-full lg:w-3/4 space-y-6">
           
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4">
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-4 gap-4">
             <h2 className="text-xl md:text-2xl font-bold text-gray-800">
-              Знайдено активностей: {isLoading ? "..." : displayedActivities.length}
+              Знайдено: {isLoading ? "..." : displayedActivities.length}
             </h2>
             
             {!isLoading && displayedActivities.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-gray-500">Показувати по:</span>
-                <select 
-                  value={itemsPerPage} 
-                  onChange={handleItemsPerPageChange}
-                  className="bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-sm font-bold text-gray-700 focus:outline-none focus:border-[#44bdf3] cursor-pointer"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
+              <div className="flex flex-wrap items-center gap-4 bg-white p-2.5 px-4 rounded-2xl border border-gray-200 shadow-sm w-full xl:w-auto justify-between xl:justify-start">
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={showDetails}
+                    onChange={(e) => setShowDetails(e.target.checked)}
+                    className="w-5 h-5 text-[#44bdf3] rounded border-gray-300 focus:ring-[#44bdf3] cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-gray-700 group-hover:text-[#44bdf3] transition-colors">
+                    Детальні картки
+                  </span>
+                </label>
+
+                <div className="w-px h-6 bg-gray-200 hidden sm:block"></div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-gray-500">Показувати по:</span>
+                  <select 
+                    value={itemsPerPage} 
+                    onChange={handleItemsPerPageChange}
+                    className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#44bdf3] cursor-pointer hover:bg-gray-100 transition-colors"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
               </div>
             )}
           </div>
 
+          {/* 🟢 СКЕЛЕТИ (Skeleton Loaders) ЗАМІСТЬ ТЕКСТУ */}
           {isLoading && (
-            <div className="p-10 text-center text-gray-500 font-medium">
-              Шукаємо active-ігри в базі даних...
+            <div className="space-y-6">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 animate-pulse">
+                  <div className="flex justify-between items-start">
+                    <div className="h-8 bg-gray-200 rounded-xl w-3/4 md:w-1/2"></div>
+                    <div className="h-6 bg-gray-200 rounded-full w-20 hidden sm:block"></div>
+                  </div>
+                  <div className="space-y-2 mt-2">
+                    <div className="h-4 bg-gray-200 rounded w-full"></div>
+                    <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                  </div>
+                  <div className="flex gap-2 mt-2 pt-3 border-t border-gray-50">
+                    <div className="h-8 w-24 bg-gray-100 rounded-lg"></div>
+                    <div className="h-8 w-24 bg-gray-100 rounded-lg"></div>
+                    <div className="h-8 w-32 bg-gray-100 rounded-lg hidden sm:block"></div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -287,68 +340,70 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               key={activity.id}
               className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 hover:shadow-md transition-all cursor-pointer border-l-4 border-transparent hover:border-l-[#FDB8D3] block"
             >
-              {/* Шапка картки стала чистою */}
               <div className="flex justify-between items-start">
                 <h3 className="text-2xl font-bold text-gray-900">{activity.title}</h3>
               </div>
 
               <p className="text-gray-600 leading-relaxed">{activity.short_description}</p>
 
-              <div className="flex flex-wrap gap-2 mt-2">
-                
-                {(activity.age_min || activity.age_max) && (
-                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
-                    🎂 Вік: {activity.age_min || 0}-{activity.age_max || '18+'} р.
-                  </span>
-                )}
+              {showDetails && (
+                <div className="flex flex-wrap gap-2 mt-2 pt-3 border-t border-gray-50">
+                  
+                  {(activity.age_min || activity.age_max) && (
+                    <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                      🎂 Вік: {activity.age_min || 0}-{activity.age_max || '18+'} р.
+                    </span>
+                  )}
 
-                {(activity.duration_min || activity.duration_max) && (
-                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
-                    ⏳ Гра: {activity.duration_min || 0}-{activity.duration_max || '...'} хв
-                  </span>
-                )}
+                  {(activity.duration_min || activity.duration_max) && (
+                    <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                      ⏳ Гра: {activity.duration_min || 0}-{activity.duration_max || '...'} хв
+                    </span>
+                  )}
 
-                {activity.preparation_time !== null && activity.preparation_time !== undefined && (
-                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
-                    🛠 Підготовка: {activity.preparation_time} хв
-                  </span>
-                )}
+                  {activity.preparation_time !== null && activity.preparation_time !== undefined && (
+                    <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                      🛠 Підготовка: {activity.preparation_time} хв
+                    </span>
+                  )}
 
-                {(activity.participants_min || activity.participants_max) && (
-                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
-                    👥 Учасники: {activity.participants_min || 1}-{activity.participants_max || '∞'}
-                  </span>
-                )}
+                  {(activity.participants_min || activity.participants_max) && (
+                    <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                      👥 Учасники: {activity.participants_min || 1}-{activity.participants_max || '∞'}
+                    </span>
+                  )}
 
-                {activity.animators_min && (
-                  <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
-                    🧑‍💼 Необхідно аніматорів: {activity.animators_min}
-                  </span>
-                )}
+                  {activity.animators_min && (
+                    <span className="bg-gray-50 text-gray-600 border border-gray-200 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                      🧑‍💼 Необхідно аніматорів: {activity.animators_min}
+                    </span>
+                  )}
 
-                {/* 🟢 НОВА РОЗУМНА ЛОГІКА ЛОКАЦІЙ (Виводить ВСІ обрані локації окремими плашками) */}
-                {activity.location?.map((loc: string, index: number) => (
-                  <span key={index} className="bg-blue-50 text-blue-600 border border-blue-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
-                    📍 {loc === 'outdoor' ? 'Надворі' :
-                        loc === 'indoor' ? 'В приміщенні' :
-                        loc === 'water' ? 'Біля води' : loc}
-                  </span>
-                ))}
+                  {activity.location?.map((loc: string, index: number) => (
+                    <span key={index} className="bg-blue-50 text-blue-600 border border-blue-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                      📍 {loc === 'outdoor' ? 'Надворі' :
+                          loc === 'indoor' ? 'В приміщенні' :
+                          loc === 'water' ? 'Біля води' : loc}
+                    </span>
+                  ))}
 
-                {!activity.has_equipment && (
-                  <span className="bg-green-50 text-green-600 border border-green-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
-                    ✅ Не потрібно реквізиту
-                  </span>
-                )}
-              </div>
+                  {!activity.has_equipment && (
+                    <span className="bg-green-50 text-green-600 border border-green-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
+                      ✅ Не потрібно реквізиту
+                    </span>
+                  )}
+                </div>
+              )}
             </Link>
           ))}
 
-          {/* Пагінація */}
           {!isLoading && totalPages > 1 && (
             <div className="flex justify-center items-center gap-4 mt-10">
               <button 
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                onClick={() => {
+                  setCurrentPage(prev => Math.max(prev - 1, 1));
+                  scrollToTop();
+                }}
                 disabled={currentPage === 1}
                 className="px-5 py-3 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm flex items-center gap-2"
               >
@@ -360,7 +415,10 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               </span>
 
               <button 
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                onClick={() => {
+                  setCurrentPage(prev => Math.min(prev + 1, totalPages));
+                  scrollToTop();
+                }}
                 disabled={currentPage === totalPages}
                 className="px-5 py-3 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm flex items-center gap-2"
               >
@@ -386,6 +444,20 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
           </Link>
         </div>
       </footer>
+
+      {/* 🟢 ПЛАВАЮЧА КНОПКА "ВГОРУ" */}
+      <button
+        onClick={scrollToTop}
+        className={`fixed bottom-6 right-6 md:bottom-10 md:right-10 p-4 rounded-full bg-[#44bdf3] text-white shadow-2xl transition-all duration-300 z-50 hover:bg-[#32b0e6] hover:scale-110 active:scale-95 ${
+          showTopBtn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'
+        }`}
+        aria-label="Повернутися вгору"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" />
+        </svg>
+      </button>
+
     </main>
   );
 }
