@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import TagSelector from "@/components/TagSelector";
 
 const categoriesList = [
   { id: "vechory", title: "Вечори" },
@@ -21,20 +22,6 @@ const locationsMap: Record<string, string> = {
   "water": "Біля води"
 };
 
-// 🟢 НАШІ ТЕГИ
-const tagsMap: Record<string, string> = {
-  "znayomstvo": "Знайомство",
-  "kryholamy": "Криголами",
-  "rukhlyvi": "Рухливі",
-  "spokiyni": "Спокійні",
-  "lohika": "На логіку",
-  "komandni": "Командні",
-  "tantsyuvalni": "Танцювальні",
-  "voda": "З водою"
-};
-
-const tagsList = Object.keys(tagsMap).map(key => ({ id: key, title: tagsMap[key] }));
-
 export default function CategoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -44,12 +31,14 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
   const [activities, setActivities] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 🟢 Динамічний словник тегів з бази
+  const [dynamicTagsMap, setDynamicTagsMap] = useState<Record<string, string>>({});
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  
+
   const [showDetails, setShowDetails] = useState(true);
 
-  // 🟢 ДОДАЛИ МАСИВ ТЕГІВ ДО ФІЛЬТРІВ
   const [filterInputs, setFilterInputs] = useState({
     searchTitle: "",
     age: "",
@@ -88,51 +77,44 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
   }, []);
 
   useEffect(() => {
-    async function fetchActivities() {
+    async function loadData() {
       setIsLoading(true);
 
-      const { data, error } = await supabase
-        .from('activities')
-        .select('*')
-        .contains('category_ids', [id])
-        .eq('status', 'published');
+      // Завантажуємо ігри і словник тегів одночасно
+      const [actRes, tagsRes] = await Promise.all([
+        supabase.from('activities').select('*').contains('category_ids', [id]).eq('status', 'published'),
+        supabase.from('tags').select('*')
+      ]);
 
-      if (error) {
-        console.error("Помилка завантаження:", error);
-      } else {
-        setActivities(data || []);
+      if (tagsRes.data) {
+        const map: Record<string, string> = {};
+        tagsRes.data.forEach((t: any) => map[t.id] = t.title);
+        setDynamicTagsMap(map);
       }
 
+      if (actRes.data) {
+        setActivities(actRes.data);
+      }
       setIsLoading(false);
     }
 
-    fetchActivities();
+    loadData();
   }, [id]);
 
   const handleApplyFilters = () => {
     setAppliedFilters(filterInputs);
-    setCurrentPage(1); 
-    setIsFiltersOpen(false); 
+    setCurrentPage(1);
+    setIsFiltersOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setItemsPerPage(Number(e.target.value));
-    setCurrentPage(1); 
+    setCurrentPage(1);
   };
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // 🟢 ФУНКЦІЯ ПЕРЕМИКАННЯ ТЕГІВ У ФІЛЬТРІ
-  const handleTagToggle = (tagId: string) => {
-    setFilterInputs(prev => ({
-      ...prev,
-      tags: prev.tags.includes(tagId) 
-        ? prev.tags.filter(t => t !== tagId) 
-        : [...prev.tags, tagId]
-    }));
   };
 
   const displayedActivities = activities.filter(a => {
@@ -163,13 +145,11 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
     if (appliedFilters.location !== "any") {
       if (!a.location || !a.location.includes(appliedFilters.location)) return false;
     }
-    // 🟢 ЛОГІКА ФІЛЬТРАЦІЇ ЗА ТЕГАМИ (шукаємо ігри, які містять ВСІ обрані теги)
     if (appliedFilters.tags.length > 0) {
       if (!a.tags || a.tags.length === 0) return false;
       const hasAllTags = appliedFilters.tags.every(t => a.tags.includes(t));
       if (!hasAllTags) return false;
     }
-
     return true;
   });
 
@@ -190,7 +170,7 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
           <h1 className="text-3xl md:text-5xl font-extrabold uppercase tracking-wide text-center w-full md:w-1/3">
             {title}
           </h1>
-          
+
           <div className="w-full md:w-1/3 flex justify-center md:justify-end relative">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -226,11 +206,11 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
       <div className="max-w-7xl mx-auto mt-6 lg:mt-10 px-4 lg:px-6 flex flex-col lg:flex-row gap-6 lg:gap-8 relative z-10 flex-grow w-full mb-16 items-start">
 
-        <aside 
+        <aside
           className="w-full lg:w-1/4 bg-white p-5 sm:p-6 rounded-3xl shadow-lg border border-gray-100 sticky top-4 z-40 transition-all overflow-y-auto"
           style={{ maxHeight: 'calc(100vh - 2rem)', scrollbarWidth: 'none' }}
         >
-          <button 
+          <button
             onClick={() => setIsFiltersOpen(!isFiltersOpen)}
             className="w-full flex justify-between items-center lg:pointer-events-none"
           >
@@ -246,25 +226,13 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
                 <input type="text" placeholder="Введіть назву гри..." value={filterInputs.searchTitle} onChange={e => setFilterInputs({ ...filterInputs, searchTitle: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bdf3]" />
               </div>
 
-              {/* 🟢 БЛОК ФІЛЬТРАЦІЇ ЗА ТЕГАМИ */}
               <div className="space-y-2 pt-2 border-b border-gray-100 pb-4">
                 <label className="block text-sm font-bold text-gray-700">🏷️ Хештеги (настрій)</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {tagsList.map(tag => (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => handleTagToggle(tag.id)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                        filterInputs.tags.includes(tag.id)
-                          ? 'bg-indigo-100 text-indigo-800 border-indigo-200'
-                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                      }`}
-                    >
-                      #{tag.title}
-                    </button>
-                  ))}
-                </div>
+                <TagSelector
+                  selectedTags={filterInputs.tags}
+                  onChange={tags => setFilterInputs(prev => ({ ...prev, tags }))}
+                  placeholder="Шукати тег..."
+                />
               </div>
 
               <div className="space-y-1 pt-2">
@@ -307,6 +275,7 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               </div>
 
             </div>
+            
             <button onClick={handleApplyFilters} className="mt-6 w-full bg-[#E0F2FE] text-[#60a5fa] font-bold py-3 rounded-xl hover:bg-[#bae6fd] transition-colors shadow-sm">
               Застосувати
             </button>
@@ -314,12 +283,12 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
         </aside>
 
         <div className="w-full lg:w-3/4 space-y-6">
-          
+
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-4 gap-4">
             <h2 className="text-xl md:text-2xl font-bold text-gray-800">
               Знайдено: {isLoading ? "..." : displayedActivities.length}
             </h2>
-            
+
             {!isLoading && displayedActivities.length > 0 && (
               <div className="flex flex-wrap items-center gap-4 bg-white p-2.5 px-4 rounded-2xl border border-gray-200 shadow-sm w-full xl:w-auto justify-between xl:justify-start">
                 <label className="flex items-center gap-2.5 cursor-pointer group">
@@ -338,8 +307,8 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-gray-500">Показувати по:</span>
-                  <select 
-                    value={itemsPerPage} 
+                  <select
+                    value={itemsPerPage}
                     onChange={handleItemsPerPageChange}
                     className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#44bdf3] cursor-pointer hover:bg-gray-100 transition-colors"
                   >
@@ -389,7 +358,6 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
             >
               <div className="flex justify-between items-start">
                 <h3 className="text-2xl font-bold text-gray-900">{activity.title}</h3>
-                {/* 🟢 КІЛЬКІСТЬ ПЕРЕГЛЯДІВ В КУТКУ КАРТКИ */}
                 <span className="text-sm font-bold text-gray-400 flex items-center gap-1.5 shrink-0 mt-1 bg-gray-50 px-2.5 py-1 rounded-lg">
                   👁️ {activity.views || 0}
                 </span>
@@ -399,11 +367,10 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
               {showDetails && (
                 <div className="flex flex-wrap gap-2 mt-2 pt-3 border-t border-gray-50">
-                  
-                  {/* 🟢 ВИВІД ХЕШТЕГІВ НА КАРТЦІ */}
+
                   {activity.tags?.map((tagId: string, index: number) => (
                     <span key={`tag-${index}`} className="bg-indigo-50 text-indigo-600 border border-indigo-100 text-sm px-3 py-1 rounded-lg font-bold flex items-center gap-1.5">
-                      #{tagsMap[tagId] || tagId}
+                      #{dynamicTagsMap[tagId] || tagId}
                     </span>
                   ))}
 
@@ -440,7 +407,7 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
                   {activity.location?.map((loc: string, index: number) => (
                     <span key={index} className="bg-blue-50 text-blue-600 border border-blue-100 text-sm px-3 py-1 rounded-lg font-medium flex items-center gap-1.5">
                       📍 {loc === 'outdoor' ? 'Надворі' :
-                          loc === 'indoor' ? 'В приміщенні' :
+                        loc === 'indoor' ? 'В приміщенні' :
                           loc === 'water' ? 'Біля води' : loc}
                     </span>
                   ))}
@@ -457,7 +424,7 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
 
           {!isLoading && totalPages > 1 && (
             <div className="flex justify-center items-center gap-4 mt-10">
-              <button 
+              <button
                 onClick={() => {
                   setCurrentPage(prev => Math.max(prev - 1, 1));
                   scrollToTop();
@@ -467,12 +434,12 @@ export default function CategoryPage({ params }: { params: Promise<{ id: string 
               >
                 ← Назад
               </button>
-              
+
               <span className="font-extrabold text-gray-500">
                 {currentPage} / {totalPages}
               </span>
 
-              <button 
+              <button
                 onClick={() => {
                   setCurrentPage(prev => Math.min(prev + 1, totalPages));
                   scrollToTop();

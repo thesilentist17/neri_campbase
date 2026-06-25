@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import ReactMarkdown from "react-markdown";
 import { toPng } from "html-to-image";
-
 import ShareButton from "@/components/ShareButton";
 
 const categoriesMap: Record<string, string> = {
@@ -47,10 +46,12 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
   const activityCardRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
+  // 🟢 УНІВЕРСАЛЬНА СИСТЕМА ПАРОЛІВ ДЛЯ МОДЕРАЦІЇ
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
+  const [passwordAction, setPasswordAction] = useState<'edit' | 'delete' | null>(null);
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
-  // 🟢 СТАНИ ДЛЯ КОМЕНТАРІВ
   const [comments, setComments] = useState<any[]>([]);
   const [newCommentName, setNewCommentName] = useState("");
   const [newCommentText, setNewCommentText] = useState("");
@@ -58,7 +59,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
 
   useEffect(() => {
     async function fetchData() {
-      // 1. Завантажуємо гру
       const { data: actData } = await supabase
         .from('activities')
         .select('*')
@@ -67,16 +67,13 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
         
       if (actData) {
         setActivity(actData);
-        
-        // Додаємо +1 перегляд (тихо у фоні)
         supabase.from('activities').update({ views: (actData.views || 0) + 1 }).eq('id', id).then();
 
-        // 2. 🟢 Завантажуємо коментарі саме для цієї гри
         const { data: comData } = await supabase
           .from('comments')
           .select('*')
           .eq('activity_id', id)
-          .order('created_at', { ascending: false }); // Найновіші зверху
+          .order('created_at', { ascending: false });
 
         if (comData) setComments(comData);
       }
@@ -107,23 +104,40 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
     }
   };
 
-  const submitEdit = async () => {
+  // 🟢 СПІЛЬНА ФУНКЦІЯ ПІДТВЕРДЖЕННЯ ПАРОЛЯ ДЛЯ ДІЙ
+  const handlePasswordSubmit = async () => {
     if (passwordInput === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-      const { error } = await supabase.from('activities').update({ status: 'editing' }).eq('id', id);
-      if (!error) {
-        alert("✅ Активність відправлено на доопрацювання! Переходимо в Адмін-панель...");
-        router.push('/admin-panel');
-      } else {
-        alert("❌ Помилка з'єднання з базою.");
+      
+      // Дія 1: Редагування гри
+      if (passwordAction === 'edit') {
+        const { error } = await supabase.from('activities').update({ status: 'editing' }).eq('id', id);
+        if (!error) {
+          alert("✅ Активність відправлено на доопрацювання! Переходимо в Адмін-панель...");
+          router.push('/admin-panel');
+        } else {
+          alert("❌ Помилка з'єднання з базою.");
+        }
+      } 
+      // Дія 2: Видалення коментаря
+      else if (passwordAction === 'delete' && commentToDelete) {
+        const { error } = await supabase.from('comments').delete().eq('id', commentToDelete);
+        if (!error) {
+          setComments(comments.filter(c => c.id !== commentToDelete));
+        } else {
+          alert("❌ Не вдалося видалити коментар.");
+        }
       }
     } else {
       alert("❌ Невірний пароль! Доступ заборонено.");
     }
+    
+    // Закриваємо модалку та очищаємо стани
     setShowPasswordPrompt(false);
     setPasswordInput("");
+    setPasswordAction(null);
+    setCommentToDelete(null);
   };
 
-  // 🟢 ФУНКЦІЯ ДОДАВАННЯ КОМЕНТАРЯ
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCommentName.trim() || !newCommentText.trim()) return;
@@ -136,7 +150,7 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
         activity_id: id,
         author_name: newCommentName,
         content: newCommentText,
-        created_at: new Date().toISOString() // 🟢 ВИПРАВЛЕННЯ: Явно генеруємо і передаємо поточний час
+        created_at: new Date().toISOString()
       }])
       .select();
 
@@ -144,7 +158,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
       console.error("Помилка коментаря:", error);
       alert("Не вдалося відправити коментар. Спробуйте ще раз.");
     } else if (data) {
-      // Миттєво додаємо новий коментар у початок списку на екрані
       setComments([data[0], ...comments]);
       setNewCommentName("");
       setNewCommentText("");
@@ -158,10 +171,13 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
   return (
     <main className="min-h-screen bg-gray-50 font-sans flex flex-col relative">
       
+      {/* 🟢 ОНОВЛЕНЕ ВІКНО ПАРОЛЯ */}
       {showPasswordPrompt && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full transform transition-all">
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">Редагування</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">
+              {passwordAction === 'edit' ? 'Редагування гри' : 'Видалення коментаря'}
+            </h3>
             <p className="text-gray-600 mb-6">🔑 Введіть пароль модератора:</p>
             <input
               type="password"
@@ -170,10 +186,21 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6 focus:outline-none focus:ring-2 focus:ring-[#FDB8D3] text-center text-xl tracking-widest"
               placeholder="Пароль..."
               autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handlePasswordSubmit()}
             />
             <div className="flex gap-3">
-              <button onClick={() => { setShowPasswordPrompt(false); setPasswordInput(""); }} className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors">Скасувати</button>
-              <button onClick={submitEdit} className="flex-1 bg-[#FDB8D3] text-white font-bold py-3 rounded-xl hover:bg-[#f9a8c8] transition-colors shadow-sm">Увійти</button>
+              <button 
+                onClick={() => { setShowPasswordPrompt(false); setPasswordInput(""); setPasswordAction(null); setCommentToDelete(null); }} 
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Скасувати
+              </button>
+              <button 
+                onClick={handlePasswordSubmit} 
+                className="flex-1 bg-[#FDB8D3] text-white font-bold py-3 rounded-xl hover:bg-[#f9a8c8] transition-colors shadow-sm"
+              >
+                Підтвердити
+              </button>
             </div>
           </div>
         </div>
@@ -184,7 +211,11 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
           <div className="max-w-4xl mx-auto flex justify-between items-center gap-2">
             <button onClick={() => window.history.back()} className="text-gray-500 hover:text-[#FDB8D3] font-bold text-base sm:text-lg transition-colors shrink-0 flex items-center">← Назад</button>
             <div className="flex gap-2 items-center justify-end">
-              <button onClick={() => setShowPasswordPrompt(true)} title="Відправити на редагування" className="flex items-center justify-center gap-2 bg-gray-50 hover:bg-yellow-50 border border-gray-200 hover:border-yellow-300 text-gray-500 hover:text-yellow-600 font-bold w-11 h-11 sm:w-auto sm:h-auto sm:px-5 sm:py-2.5 rounded-xl transition-all shadow-sm shrink-0">
+              <button 
+                onClick={() => { setPasswordAction('edit'); setShowPasswordPrompt(true); }} 
+                title="Відправити на редагування" 
+                className="flex items-center justify-center gap-2 bg-gray-50 hover:bg-yellow-50 border border-gray-200 hover:border-yellow-300 text-gray-500 hover:text-yellow-600 font-bold w-11 h-11 sm:w-auto sm:h-auto sm:px-5 sm:py-2.5 rounded-xl transition-all shadow-sm shrink-0"
+              >
                 <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                 <span className="hidden sm:inline text-sm">Редагувати</span>
               </button>
@@ -230,7 +261,7 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
               </div>
               <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
                 <p className="text-blue-800 font-medium text-base mb-2">👥 Кількість учасників: {activity.participants_min}-{activity.participants_max}</p>
-                <p className="text-blue-800 font-medium text-base">🧑‍💼 Необхідна кількість аніматорів: {activity.animators_min}-{activity.animators_max}</p>
+                <p className="text-blue-800 font-medium text-base">🧑‍💼 Необхідно аніматорів: {activity.animators_min} {activity.animators_max ? `(ідеально ${activity.animators_max})` : ''}</p>
               </div>
             </div>
 
@@ -277,13 +308,11 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
             )}
           </div>
 
-          {/* 🟢 БЛОК КОМЕНТАРІВ (Не потрапить у скріншот, бо за межами ref) */}
           <div className="mt-16 pt-10 border-t-2 border-gray-100">
             <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-8 flex items-center gap-3">
               <span className="text-3xl">💬</span> Поради та коментарі ({comments.length})
             </h2>
 
-            {/* Форма додавання коментаря */}
             <form onSubmit={handleAddComment} className="bg-blue-50 p-6 md:p-8 rounded-3xl border border-blue-100 mb-10 shadow-sm">
               <h3 className="font-bold text-blue-900 mb-4 text-lg">Маєте пораду чи лайфхак до цієї гри? Поділіться!</h3>
               <div className="space-y-4">
@@ -315,31 +344,46 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
               </div>
             </form>
 
-            {/* Список коментарів */}
             <div className="space-y-4">
               {comments.length === 0 ? (
                 <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-gray-200">
                   <p className="text-gray-400 font-medium text-lg">Поки що немає порад. Будьте першим!</p>
                 </div>
               ) : (
-                comments.map((comment) => (
-                  <div key={comment.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="font-extrabold text-gray-900 text-lg">{comment.author_name}</span>
-                      <span className="text-sm font-bold text-gray-400 bg-gray-50 px-3 py-1 rounded-lg">
-                        {/* 🟢 ВИПРАВЛЕНО: Тепер виводиться і дата, і точний час */}
-                        {new Date(comment.created_at).toLocaleString('uk-UA', { 
-                          day: '2-digit', 
-                          month: 'long', 
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
+                comments.map((comment) => {
+                  const d = new Date(comment.created_at);
+                  const day = d.getDate().toString().padStart(2, '0');
+                  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+                  const year = d.getFullYear();
+                  const hours = d.getHours().toString().padStart(2, '0');
+                  const minutes = d.getMinutes().toString().padStart(2, '0');
+                  const formattedDate = `${day}.${month}.${year} о ${hours}:${minutes}`;
+
+                  return (
+                    <div key={comment.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
+                      <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+                        <span className="font-extrabold text-gray-900 text-lg">{comment.author_name}</span>
+                        
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 shrink-0">
+                            {formattedDate}
+                          </span>
+                          
+                          {/* 🟢 КНОПКА ВИДАЛЕННЯ (видима при наведенні або на мобільних завжди) */}
+                          <button 
+                            onClick={() => { setCommentToDelete(comment.id); setPasswordAction('delete'); setShowPasswordPrompt(true); }}
+                            className="text-gray-300 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50 xl:opacity-0 xl:group-hover:opacity-100"
+                            title="Видалити коментар (Модератор)"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+
+                      </div>
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{comment.content}</p>
                     </div>
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{comment.content}</p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

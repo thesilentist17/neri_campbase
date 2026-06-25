@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import TagSelector from "@/components/TagSelector";
 
 // 🟢 Списки для швидкого вибору
 const PREDEFINED_CATEGORIES = [
@@ -20,18 +21,6 @@ const PREDEFINED_LOCATIONS = [
   { id: "indoor", title: "В приміщенні" },
   { id: "outdoor", title: "Надворі" },
   { id: "water", title: "Біля води" }
-];
-
-// 🟢 НОВИЙ СПИСОК ТЕГІВ
-const PREDEFINED_TAGS = [
-  { id: "znayomstvo", title: "Знайомство" },
-  { id: "kryholamy", title: "Криголами" },
-  { id: "rukhlyvi", title: "Рухливі" },
-  { id: "spokiyni", title: "Спокійні" },
-  { id: "lohika", title: "На логіку" },
-  { id: "komandni", title: "Командні" },
-  { id: "tantsyuvalni", title: "Танцювальні" },
-  { id: "voda", title: "З водою" }
 ];
 
 export default function AdminPanelPage() {
@@ -433,26 +422,10 @@ export default function AdminPanelPage() {
                   {/* 🟢 ТЕГИ (НОВИЙ БЛОК) */}
                   <div className="bg-white border border-gray-200 p-4 rounded-xl">
                     <span className="text-xs text-gray-500 font-bold uppercase block mb-3">Хештеги (Настрій):</span>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {PREDEFINED_TAGS.map(tag => {
-                        const isSelected = (activity.tags || []).includes(tag.id);
-                        return (
-                          <button
-                            key={tag.id}
-                            onClick={() => toggleArrayItem(activity.id, 'tags', tag.id, activity.tags)}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${isSelected ? 'bg-indigo-100 border-indigo-200 text-indigo-800 shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
-                          >
-                            {isSelected ? '✓ ' : '+ '}#{tag.title}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <input
-                      type="text"
-                      value={(activity.tags || []).filter((id: string) => !PREDEFINED_TAGS.find(t => t.id === id)).join(', ')}
-                      onChange={(e) => handleCustomArrayInput(activity.id, 'tags', e.target.value, PREDEFINED_TAGS, activity.tags)}
-                      className="w-full bg-gray-50 p-2 text-sm border border-gray-200 rounded-lg focus:border-indigo-400 focus:outline-none"
-                      placeholder="Кастомні теги (через кому)..."
+                    <TagSelector 
+                      selectedTags={activity.tags || []} 
+                      onChange={newTags => handleUpdateField(activity.id, 'tags', newTags)} 
+                      placeholder="Шукати або створити..."
                     />
                   </div>
 
