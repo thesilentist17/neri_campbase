@@ -326,7 +326,14 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
                     <div className="flex justify-between items-center mb-3">
                       <span className="font-extrabold text-gray-900 text-lg">{comment.author_name}</span>
                       <span className="text-sm font-bold text-gray-400 bg-gray-50 px-3 py-1 rounded-lg">
-                        {new Date(comment.created_at).toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' })}
+                        {/* 🟢 ВИПРАВЛЕНО: Тепер виводиться і дата, і точний час */}
+                        {new Date(comment.created_at).toLocaleString('uk-UA', { 
+                          day: '2-digit', 
+                          month: 'long', 
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </span>
                     </div>
                     <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{comment.content}</p>
