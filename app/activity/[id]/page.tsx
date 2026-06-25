@@ -49,7 +49,18 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
         .eq('id', id)
         .single();
         
-      if (data) setActivity(data);
+      if (data) {
+        setActivity(data);
+        
+        // 🟢 НОВЕ: Збільшуємо лічильник переглядів на +1
+        supabase
+          .from('activities')
+          .update({ views: (data.views || 0) + 1 })
+          .eq('id', id)
+          .then(({ error: updateError }) => {
+            if (updateError) console.error("Помилка оновлення переглядів:", updateError);
+          });
+      }
       setIsLoading(false);
     }
     fetchActivity();
@@ -219,6 +230,11 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
                   📍 {locationsMap[loc] || loc}
                 </span>
               ))}
+
+              {/* 🟢 НОВЕ: Плашка з лічильником переглядів */}
+              <span className="bg-purple-50 text-purple-700 border border-purple-100 px-5 py-2 rounded-full font-bold text-base flex items-center gap-1.5 shadow-sm">
+                👁️ {activity.views ? activity.views + 1 : 1}
+              </span>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
