@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import TagSelector from "@/components/TagSelector";
+import imageCompression from 'browser-image-compression'; // 🟢 Додано для стиснення фото
 
-// 🟢 Списки для швидкого вибору
 const PREDEFINED_CATEGORIES = [
   { id: "vechory", title: "Вечори" },
   { id: "katekhyzatsii", title: "Катехизації" },
@@ -24,17 +24,14 @@ const PREDEFINED_LOCATIONS = [
 ];
 
 export default function AdminPanelPage() {
-  // --- АВТОРИЗАЦІЯ ---
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
 
   const SECRET_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
 
-  // --- ДАНІ АДМІН-ПАНЕЛІ ---
   const [pendingActivities, setPendingActivities] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
-  // 🟢 Стан для перемикання між активними та відхиленими
   const [activeTab, setActiveTab] = useState<'pending' | 'rejected'>('pending');
 
   useEffect(() => {
@@ -92,6 +89,64 @@ export default function AdminPanelPage() {
     handleUpdateField(id, field, merged);
   };
 
+  // 🟢 ФУНКЦІЯ ЗАВАНТАЖЕННЯ ФАЙЛІВ ДЛЯ АДМІНА
+  const handleFileUpload = async (id: string, files: FileList | null, isImage: boolean, currentUrls: string[]) => {
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    const validFiles: File[] = [];
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 МБ
+
+    // Валідація
+    for (const file of fileArray) {
+      if (isImage && !file.type.startsWith("image/")) {
+        alert(`❌ Файл "${file.name}" не є зображенням!`);
+        continue;
+      }
+      if (file.size > MAX_SIZE) {
+        alert(`❌ Файл "${file.name}" занадто великий (макс 10 МБ).`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) return;
+
+    alert("⏳ Почалось завантаження файлів. Це може зайняти хвилину...");
+
+    const urls: string[] = [];
+    for (const file of validFiles) {
+      let fileToUpload = file;
+      
+      if (isImage) {
+        try {
+          // Стискаємо фото
+          fileToUpload = await imageCompression(file, { maxSizeMB: 0.3, maxWidthOrHeight: 1920, useWebWorker: true });
+        } catch (error) {
+          console.error("Помилка стиснення:", error);
+        }
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${isImage ? 'images' : 'documents'}/${fileName}`;
+
+      const { error } = await supabase.storage.from('activities').upload(filePath, fileToUpload);
+      if (!error) {
+        const { data } = supabase.storage.from('activities').getPublicUrl(filePath);
+        urls.push(data.publicUrl);
+      } else {
+        alert(`❌ Помилка завантаження файлу ${file.name}`);
+      }
+    }
+
+    if (urls.length > 0) {
+      const updatedUrls = [...(currentUrls || []), ...urls];
+      handleUpdateField(id, isImage ? 'image_urls' : 'file_urls', updatedUrls);
+      alert("✅ Файли успішно завантажено та прикріплено!");
+    }
+  };
+
   async function handleApprove(id: string) {
     const confirmApprove = window.confirm("Опублікувати цю гру? Вона стане видимою для всіх.");
     if (!confirmApprove) return;
@@ -109,16 +164,18 @@ export default function AdminPanelPage() {
         age_max: activityToPublish.age_max,
         duration_min: activityToPublish.duration_min,
         duration_max: activityToPublish.duration_max,
+        preparation_time: activityToPublish.preparation_time,
         participants_min: activityToPublish.participants_min,
         participants_max: activityToPublish.participants_max,
         animators_min: activityToPublish.animators_min,
         animators_max: activityToPublish.animators_max,
-        preparation_time: activityToPublish.preparation_time,
         has_equipment: activityToPublish.has_equipment,
         equipment: activityToPublish.equipment,
         category_ids: activityToPublish.category_ids?.map((c: string) => c.trim()).filter(Boolean),
         location: activityToPublish.location?.map((l: string) => l.trim()).filter(Boolean),
-        tags: activityToPublish.tags?.map((t: string) => t.trim()).filter(Boolean) // 🟢 ЗБЕРІГАЄМО ТЕГИ
+        tags: activityToPublish.tags?.map((t: string) => t.trim()).filter(Boolean),
+        image_urls: activityToPublish.image_urls,
+        file_urls: activityToPublish.file_urls
       })
       .eq('id', id);
 
@@ -135,28 +192,16 @@ export default function AdminPanelPage() {
     const confirmReject = window.confirm("УВАГА! Ви дійсно хочете відхилити та приховати цю гру?");
     if (!confirmReject) return;
 
-    const { error } = await supabase
-      .from('activities')
-      .update({ status: 'rejected' })
-      .eq('id', id);
-
-    if (!error) {
-      setPendingActivities(pendingActivities.filter(a => a.id !== id));
-    }
+    const { error } = await supabase.from('activities').update({ status: 'rejected' }).eq('id', id);
+    if (!error) setPendingActivities(pendingActivities.filter(a => a.id !== id));
   }
 
   async function handleRestore(id: string) {
     const confirmRestore = window.confirm("Відновити цю гру? Вона повернеться у список 'Очікують'.");
     if (!confirmRestore) return;
 
-    const { error } = await supabase
-      .from('activities')
-      .update({ status: 'pending' })
-      .eq('id', id);
-
-    if (!error) {
-      setPendingActivities(pendingActivities.filter(a => a.id !== id));
-    }
+    const { error } = await supabase.from('activities').update({ status: 'pending' }).eq('id', id);
+    if (!error) setPendingActivities(pendingActivities.filter(a => a.id !== id));
   }
 
   if (!isAuthenticated) {
@@ -178,18 +223,11 @@ export default function AdminPanelPage() {
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-center text-xl tracking-widest focus:outline-none focus:ring-2 focus:ring-[#FDB8D3]"
               required
             />
-            <button
-              type="submit"
-              className="w-full bg-[#FDB8D3] text-white font-bold py-4 rounded-xl hover:bg-[#f9a8c8] transition-colors shadow-md text-lg"
-            >
-              Увійти
-            </button>
+            <button type="submit" className="w-full bg-[#FDB8D3] text-white font-bold py-4 rounded-xl hover:bg-[#f9a8c8] transition-colors shadow-md text-lg">Увійти</button>
           </form>
 
           <div className="mt-8">
-            <Link href="/" className="text-gray-400 hover:text-gray-600 font-bold text-sm underline">
-              ← Повернутися на сайт
-            </Link>
+            <Link href="/" className="text-gray-400 hover:text-gray-600 font-bold text-sm underline">← Повернутися на сайт</Link>
           </div>
         </div>
       </main>
@@ -208,12 +246,8 @@ export default function AdminPanelPage() {
             </div>
           </div>
           <div className="flex items-center gap-6">
-            <button onClick={() => setIsAuthenticated(false)} className="text-gray-400 hover:text-white font-bold text-sm">
-              🚪 Вийти
-            </button>
-            <Link href="/" className="text-[#44bdf3] hover:text-white font-bold underline">
-              На сайт
-            </Link>
+            <button onClick={() => setIsAuthenticated(false)} className="text-gray-400 hover:text-white font-bold text-sm">🚪 Вийти</button>
+            <Link href="/" className="text-[#44bdf3] hover:text-white font-bold underline">На сайт</Link>
           </div>
         </div>
       </div>
@@ -239,9 +273,7 @@ export default function AdminPanelPage() {
           <h2 className="text-2xl font-bold text-gray-800">
             {activeTab === 'pending' ? 'Очікують на перевірку' : 'Відхилені активності'}: {pendingActivities.length}
           </h2>
-          <button onClick={fetchActivities} className="text-blue-600 hover:underline font-bold text-sm flex items-center gap-1">
-            🔄 Оновити список
-          </button>
+          <button onClick={fetchActivities} className="text-blue-600 hover:underline font-bold text-sm flex items-center gap-1">🔄 Оновити список</button>
         </div>
 
         {isLoading ? (
@@ -255,9 +287,7 @@ export default function AdminPanelPage() {
               {activeTab === 'pending' ? 'Чудова робота!' : 'Тут порожньо'}
             </h3>
             <p className="text-gray-600 text-lg leading-relaxed font-medium">
-              {activeTab === 'pending' 
-                ? 'Всі запропоновані активності успішно перевірено. Можна відпочити!' 
-                : 'Немає жодної відхиленої гри.'}
+              {activeTab === 'pending' ? 'Всі запропоновані активності успішно перевірено. Можна відпочити!' : 'Немає жодної відхиленої гри.'}
             </p>
           </div>
         ) : (
@@ -283,17 +313,11 @@ export default function AdminPanelPage() {
                   <div className="flex gap-3 w-full md:w-auto shrink-0">
                     {activeTab === 'pending' ? (
                       <>
-                        <button onClick={() => handleReject(activity.id)} className="flex-1 md:flex-none bg-red-50 text-red-600 border border-red-200 font-bold px-6 py-3 rounded-xl hover:bg-red-100 transition-colors">
-                          ❌ Відхилити
-                        </button>
-                        <button onClick={() => handleApprove(activity.id)} className="flex-1 md:flex-none bg-green-500 text-white font-bold px-8 py-3 rounded-xl hover:bg-green-600 transition-colors shadow-sm">
-                          ✅ Опублікувати
-                        </button>
+                        <button onClick={() => handleReject(activity.id)} className="flex-1 md:flex-none bg-red-50 text-red-600 border border-red-200 font-bold px-6 py-3 rounded-xl hover:bg-red-100 transition-colors">❌ Відхилити</button>
+                        <button onClick={() => handleApprove(activity.id)} className="flex-1 md:flex-none bg-green-500 text-white font-bold px-8 py-3 rounded-xl hover:bg-green-600 transition-colors shadow-sm">✅ Опублікувати</button>
                       </>
                     ) : (
-                      <button onClick={() => handleRestore(activity.id)} className="flex-1 md:flex-none bg-yellow-100 text-yellow-700 border border-yellow-300 font-bold px-6 py-3 rounded-xl hover:bg-yellow-200 transition-colors">
-                        🔄 Відновити
-                      </button>
+                      <button onClick={() => handleRestore(activity.id)} className="flex-1 md:flex-none bg-yellow-100 text-yellow-700 border border-yellow-300 font-bold px-6 py-3 rounded-xl hover:bg-yellow-200 transition-colors">🔄 Відновити</button>
                     )}
                   </div>
                 </div>
@@ -301,20 +325,11 @@ export default function AdminPanelPage() {
                 <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-6 space-y-6">
                   <div>
                     <h4 className="font-bold text-gray-700 mb-2 text-sm uppercase">Короткий опис:</h4>
-                    <textarea
-                      value={activity.short_description || ''}
-                      onChange={(e) => handleUpdateField(activity.id, 'short_description', e.target.value)}
-                      className="w-full text-gray-600 italic bg-white p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#44bdf3] resize-y min-h-[80px]"
-                    />
+                    <textarea value={activity.short_description || ''} onChange={(e) => handleUpdateField(activity.id, 'short_description', e.target.value)} className="w-full text-gray-600 italic bg-white p-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#44bdf3] resize-y min-h-[80px]" />
                   </div>
-
                   <div>
                     <h4 className="font-bold text-gray-700 mb-2 text-sm uppercase">Повні правила:</h4>
-                    <textarea
-                      value={activity.full_content || ''}
-                      onChange={(e) => handleUpdateField(activity.id, 'full_content', e.target.value)}
-                      className="w-full min-h-[200px] text-gray-700 bg-white p-4 rounded-xl border border-blue-300 focus:outline-none focus:ring-2 focus:ring-[#44bdf3] resize-y"
-                    />
+                    <textarea value={activity.full_content || ''} onChange={(e) => handleUpdateField(activity.id, 'full_content', e.target.value)} className="w-full min-h-[200px] text-gray-700 bg-white p-4 rounded-xl border border-blue-300 focus:outline-none focus:ring-2 focus:ring-[#44bdf3] resize-y" />
                   </div>
                 </div>
 
@@ -328,7 +343,6 @@ export default function AdminPanelPage() {
                       <input type="number" value={activity.age_max || ''} onChange={(e) => handleUpdateField(activity.id, 'age_max', parseInt(e.target.value) || null)} className="w-full bg-gray-50 p-1 rounded text-center border focus:border-blue-400 focus:outline-none" />
                     </div>
                   </div>
-
                   <div className="bg-white p-3 rounded-xl border border-gray-200">
                     <span className="text-xs text-gray-500 font-bold uppercase block mb-1">Час у хв</span>
                     <div className="flex items-center gap-2">
@@ -337,14 +351,12 @@ export default function AdminPanelPage() {
                       <input type="number" value={activity.duration_max || ''} onChange={(e) => handleUpdateField(activity.id, 'duration_max', parseInt(e.target.value) || null)} className="w-full bg-gray-50 p-1 rounded text-center border focus:border-blue-400 focus:outline-none" />
                     </div>
                   </div>
-
                   <div className="bg-white p-3 rounded-xl border border-gray-200">
                     <span className="text-xs text-gray-500 font-bold uppercase block mb-1">Підготовка (хв)</span>
                     <div className="flex items-center gap-2 h-full pb-1">
                       <input type="number" value={activity.preparation_time || ''} onChange={(e) => handleUpdateField(activity.id, 'preparation_time', parseInt(e.target.value) || null)} className="w-full bg-gray-50 p-1 rounded text-center border focus:border-blue-400 focus:outline-none" placeholder="0" />
                     </div>
                   </div>
-
                   <div className="bg-white p-3 rounded-xl border border-gray-200">
                     <span className="text-xs text-gray-500 font-bold uppercase block mb-1">Учасники</span>
                     <div className="flex items-center gap-2">
@@ -353,9 +365,8 @@ export default function AdminPanelPage() {
                       <input type="number" value={activity.participants_max || ''} onChange={(e) => handleUpdateField(activity.id, 'participants_max', parseInt(e.target.value) || null)} className="w-full bg-gray-50 p-1 rounded text-center border focus:border-blue-400 focus:outline-none" />
                     </div>
                   </div>
-
                   <div className="bg-white p-3 rounded-xl border border-gray-200">
-                    <span className="text-xs text-gray-500 font-bold uppercase block mb-1">Аніматори</span>
+                    <span className="text-xs text-gray-500 font-bold uppercase block mb-1">Аніматори (мін-макс)</span>
                     <div className="flex items-center gap-2">
                       <input type="number" value={activity.animators_min || ''} onChange={(e) => handleUpdateField(activity.id, 'animators_min', parseInt(e.target.value) || null)} className="w-full bg-gray-50 p-1 rounded text-center border focus:border-blue-400 focus:outline-none" />
                       <span>-</span>
@@ -364,9 +375,7 @@ export default function AdminPanelPage() {
                   </div>
                 </div>
 
-                {/* 🟢 КАТЕГОРІЇ, ЛОКАЦІЇ ТА ТЕГИ (3 КОЛОНКИ ЗАМІСТЬ 2) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-2 mb-6">
-                  
                   {/* КАТЕГОРІЇ */}
                   <div className="bg-white border border-gray-200 p-4 rounded-xl">
                     <span className="text-xs text-gray-500 font-bold uppercase block mb-3">Категорії:</span>
@@ -374,23 +383,13 @@ export default function AdminPanelPage() {
                       {PREDEFINED_CATEGORIES.map(cat => {
                         const isSelected = (activity.category_ids || []).includes(cat.id);
                         return (
-                          <button
-                            key={cat.id}
-                            onClick={() => toggleArrayItem(activity.id, 'category_ids', cat.id, activity.category_ids)}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${isSelected ? 'bg-[#FDB8D3] border-[#FDB8D3] text-white shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
-                          >
+                          <button key={cat.id} onClick={() => toggleArrayItem(activity.id, 'category_ids', cat.id, activity.category_ids)} className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${isSelected ? 'bg-[#FDB8D3] border-[#FDB8D3] text-white shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
                             {isSelected ? '✓ ' : '+ '}{cat.title}
                           </button>
                         );
                       })}
                     </div>
-                    <input
-                      type="text"
-                      value={(activity.category_ids || []).filter((id: string) => !PREDEFINED_CATEGORIES.find(c => c.id === id)).join(', ')}
-                      onChange={(e) => handleCustomArrayInput(activity.id, 'category_ids', e.target.value, PREDEFINED_CATEGORIES, activity.category_ids)}
-                      className="w-full bg-gray-50 p-2 text-sm border border-gray-200 rounded-lg focus:border-[#44bdf3] focus:outline-none"
-                      placeholder="Кастомні (через кому)..."
-                    />
+                    <input type="text" value={(activity.category_ids || []).filter((id: string) => !PREDEFINED_CATEGORIES.find(c => c.id === id)).join(', ')} onChange={(e) => handleCustomArrayInput(activity.id, 'category_ids', e.target.value, PREDEFINED_CATEGORIES, activity.category_ids)} className="w-full bg-gray-50 p-2 text-sm border border-gray-200 rounded-lg focus:border-[#44bdf3] focus:outline-none" placeholder="Кастомні (через кому)..." />
                   </div>
 
                   {/* ЛОКАЦІЇ */}
@@ -400,89 +399,109 @@ export default function AdminPanelPage() {
                       {PREDEFINED_LOCATIONS.map(loc => {
                         const isSelected = (activity.location || []).includes(loc.id);
                         return (
-                          <button
-                            key={loc.id}
-                            onClick={() => toggleArrayItem(activity.id, 'location', loc.id, activity.location)}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${isSelected ? 'bg-[#44bdf3] border-[#44bdf3] text-white shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
-                          >
+                          <button key={loc.id} onClick={() => toggleArrayItem(activity.id, 'location', loc.id, activity.location)} className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${isSelected ? 'bg-[#44bdf3] border-[#44bdf3] text-white shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
                             {isSelected ? '✓ ' : '+ '}{loc.title}
                           </button>
                         );
                       })}
                     </div>
-                    <input
-                      type="text"
-                      value={(activity.location || []).filter((id: string) => !PREDEFINED_LOCATIONS.find(c => c.id === id)).join(', ')}
-                      onChange={(e) => handleCustomArrayInput(activity.id, 'location', e.target.value, PREDEFINED_LOCATIONS, activity.location)}
-                      className="w-full bg-gray-50 p-2 text-sm border border-gray-200 rounded-lg focus:border-[#44bdf3] focus:outline-none"
-                      placeholder="Кастомні (через кому)..."
-                    />
+                    <input type="text" value={(activity.location || []).filter((id: string) => !PREDEFINED_LOCATIONS.find(c => c.id === id)).join(', ')} onChange={(e) => handleCustomArrayInput(activity.id, 'location', e.target.value, PREDEFINED_LOCATIONS, activity.location)} className="w-full bg-gray-50 p-2 text-sm border border-gray-200 rounded-lg focus:border-[#44bdf3] focus:outline-none" placeholder="Кастомні (через кому)..." />
                   </div>
 
-                  {/* 🟢 ТЕГИ (НОВИЙ БЛОК) */}
+                  {/* ТЕГИ */}
                   <div className="bg-white border border-gray-200 p-4 rounded-xl">
                     <span className="text-xs text-gray-500 font-bold uppercase block mb-3">Хештеги (Настрій):</span>
-                    <TagSelector 
-                      selectedTags={activity.tags || []} 
-                      onChange={newTags => handleUpdateField(activity.id, 'tags', newTags)} 
-                      placeholder="Шукати або створити..."
-                    />
+                    <TagSelector selectedTags={activity.tags || []} onChange={newTags => handleUpdateField(activity.id, 'tags', newTags)} placeholder="Шукати або створити..." />
                   </div>
 
-                  {/* РЕКВІЗИТ (Займає тепер всю ширину - 3 колонки) */}
+                  {/* РЕКВІЗИТ */}
                   <div className="md:col-span-3 bg-white p-4 border border-gray-200 rounded-xl flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                     <label className="flex items-center gap-2 cursor-pointer font-bold text-gray-700 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={activity.has_equipment || false}
-                        onChange={(e) => handleUpdateField(activity.id, 'has_equipment', e.target.checked)}
-                        className="w-5 h-5 accent-red-500"
-                      />
+                      <input type="checkbox" checked={activity.has_equipment || false} onChange={(e) => handleUpdateField(activity.id, 'has_equipment', e.target.checked)} className="w-5 h-5 accent-red-500" />
                       🎒 Потрібен реквізит
                     </label>
                     {activity.has_equipment && (
-                      <input
-                        type="text"
-                        value={activity.equipment || ''}
-                        onChange={(e) => handleUpdateField(activity.id, 'equipment', e.target.value)}
-                        placeholder="Наприклад: м'яч, 10 аркушів паперу, маркери..."
-                        className="w-full bg-gray-50 p-2 rounded-xl border focus:border-red-400 focus:outline-none"
-                      />
+                      <input type="text" value={activity.equipment || ''} onChange={(e) => handleUpdateField(activity.id, 'equipment', e.target.value)} placeholder="Наприклад: м'яч, 10 аркушів паперу, маркери..." className="w-full bg-gray-50 p-2 rounded-xl border focus:border-red-400 focus:outline-none" />
                     )}
                   </div>
                 </div>
 
-                {(activity.image_urls?.length > 0 || activity.file_urls?.length > 0) && (
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 mx-2">
-                    <h4 className="font-bold text-gray-700 mb-2 text-sm uppercase">📎 Прикріплені матеріали:</h4>
+                {/* 🟢 БЛОК КЕРУВАННЯ МАТЕРІАЛАМИ В АДМІНЦІ (ТЕПЕР ІЗ ЗАВАНТАЖЕННЯМ) */}
+                <div className="bg-white p-5 rounded-xl border border-gray-200 mx-2 mb-6 shadow-sm">
+                  <h4 className="font-bold text-gray-700 mb-4 text-sm uppercase">📎 Прикріплені матеріали:</h4>
 
-                    {activity.image_urls?.length > 0 && (
-                      <div className="mb-3">
-                        <span className="text-xs text-gray-500 font-bold block mb-1">ФОТО:</span>
-                        <div className="flex gap-2 flex-wrap">
-                          {activity.image_urls.map((url: string, i: number) => (
-                            <a key={i} href={url} target="_blank" className="text-[#44bdf3] hover:underline text-sm font-medium">
-                              🖼️ Переглянути фото {i + 1}
-                            </a>
-                          ))}
+                  <div className="mb-6 border-b border-gray-100 pb-5">
+                    <span className="text-xs text-gray-500 font-bold block mb-2">ФОТОГРАФІЇ ТА СХЕМИ:</span>
+                    <div className="flex gap-2 flex-wrap mb-3">
+                      {activity.image_urls?.map((url: string, i: number) => (
+                        <div key={i} className="flex items-center gap-2 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg group">
+                          <a href={url} target="_blank" className="text-[#44bdf3] hover:underline text-sm font-bold">Фото {i + 1}</a>
+                          <button onClick={() => handleUpdateField(activity.id, 'image_urls', activity.image_urls.filter((u: string) => u !== url))} className="text-gray-400 hover:text-red-500 font-bold ml-2 text-lg leading-none">×</button>
                         </div>
-                      </div>
-                    )}
-
-                    {activity.file_urls?.length > 0 && (
-                      <div>
-                        <span className="text-xs text-gray-500 font-bold block mb-1">ДОКУМЕНТИ:</span>
-                        <div className="flex gap-2 flex-wrap">
-                          {activity.file_urls.map((url: string, i: number) => (
-                            <a key={i} href={url} target="_blank" className="text-green-600 hover:underline text-sm font-medium">
-                              📄 Переглянути файл {i + 1}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                      ))}
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 items-center">
+                      <input 
+                        type="text" 
+                        placeholder="Вставити пряме посилання на нове фото..." 
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = (e.target as HTMLInputElement).value.trim();
+                            if (val) handleUpdateField(activity.id, 'image_urls', [...(activity.image_urls || []), val]);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }}
+                        className="w-full bg-gray-50 p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#44bdf3]"
+                      />
+                      <span className="text-xs font-bold text-gray-400 uppercase">або</span>
+                      <input 
+                        type="file" 
+                        multiple 
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(activity.id, e.target.files, true, activity.image_urls)}
+                        className="text-sm w-full sm:w-auto file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#44bdf3]/10 file:text-[#44bdf3] hover:file:bg-[#44bdf3]/20 cursor-pointer"
+                        title="Завантажити з комп'ютера"
+                      />
+                    </div>
                   </div>
-                )}
+
+                  <div>
+                    <span className="text-xs text-gray-500 font-bold block mb-2">ДОКУМЕНТИ ТА ФАЙЛИ:</span>
+                    <div className="flex gap-2 flex-wrap mb-3">
+                      {activity.file_urls?.map((url: string, i: number) => (
+                        <div key={i} className="flex items-center gap-2 bg-green-50 border border-green-100 px-3 py-1.5 rounded-lg group">
+                          <a href={url} target="_blank" className="text-green-600 hover:underline text-sm font-bold">Файл {i + 1}</a>
+                          <button onClick={() => handleUpdateField(activity.id, 'file_urls', activity.file_urls.filter((u: string) => u !== url))} className="text-gray-400 hover:text-red-500 font-bold ml-2 text-lg leading-none">×</button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 items-center">
+                      <input 
+                        type="text" 
+                        placeholder="Вставити пряме посилання на документ..." 
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = (e.target as HTMLInputElement).value.trim();
+                            if (val) handleUpdateField(activity.id, 'file_urls', [...(activity.file_urls || []), val]);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }}
+                        className="w-full bg-gray-50 p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-green-400"
+                      />
+                      <span className="text-xs font-bold text-gray-400 uppercase">або</span>
+                      <input 
+                        type="file" 
+                        multiple 
+                        accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.csv,.mp3,.wav,.mp4,.mov,.zip,.rar,.7z,.svg"
+                        onChange={(e) => handleFileUpload(activity.id, e.target.files, false, activity.file_urls)}
+                        className="text-sm w-full sm:w-auto file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-green-100 file:text-green-700 hover:file:bg-green-200 cursor-pointer"
+                        title="Завантажити з комп'ютера"
+                      />
+                    </div>
+                  </div>
+                </div>
 
               </div>
             ))}
