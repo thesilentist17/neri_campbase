@@ -25,17 +25,6 @@ const locationsMap: Record<string, string> = {
   "water": "Біля води"
 };
 
-const tagsMap: Record<string, string> = {
-  "znayomstvo": "Знайомство",
-  "kryholamy": "Криголами",
-  "rukhlyvi": "Рухливі",
-  "spokiyni": "Спокійні",
-  "lohika": "На логіку",
-  "komandni": "Командні",
-  "tantsyuvalni": "Танцювальні",
-  "voda": "З водою"
-};
-
 export default function ActivityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -46,7 +35,9 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
   const activityCardRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // 🟢 УНІВЕРСАЛЬНА СИСТЕМА ПАРОЛІВ ДЛЯ МОДЕРАЦІЇ
+  // 🟢 ДИНАМІЧНИЙ СЛОВНИК ТЕГІВ
+  const [dynamicTagsMap, setDynamicTagsMap] = useState<Record<string, string>>({});
+
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordAction, setPasswordAction] = useState<'edit' | 'delete' | null>(null);
@@ -59,15 +50,21 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
 
   useEffect(() => {
     async function fetchData() {
-      const { data: actData } = await supabase
-        .from('activities')
-        .select('*')
-        .eq('id', id)
-        .single();
+      // 🟢 Завантажуємо гру і ТЕГИ одночасно
+      const [actRes, tagsRes] = await Promise.all([
+        supabase.from('activities').select('*').eq('id', id).single(),
+        supabase.from('tags').select('*')
+      ]);
         
-      if (actData) {
-        setActivity(actData);
-        supabase.from('activities').update({ views: (actData.views || 0) + 1 }).eq('id', id).then();
+      if (tagsRes.data) {
+        const map: Record<string, string> = {};
+        tagsRes.data.forEach((t: any) => map[t.id] = t.title);
+        setDynamicTagsMap(map);
+      }
+
+      if (actRes.data) {
+        setActivity(actRes.data);
+        supabase.from('activities').update({ views: (actRes.data.views || 0) + 1 }).eq('id', id).then();
 
         const { data: comData } = await supabase
           .from('comments')
@@ -104,11 +101,8 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
     }
   };
 
-  // 🟢 СПІЛЬНА ФУНКЦІЯ ПІДТВЕРДЖЕННЯ ПАРОЛЯ ДЛЯ ДІЙ
   const handlePasswordSubmit = async () => {
     if (passwordInput === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-      
-      // Дія 1: Редагування гри
       if (passwordAction === 'edit') {
         const { error } = await supabase.from('activities').update({ status: 'editing' }).eq('id', id);
         if (!error) {
@@ -117,9 +111,7 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
         } else {
           alert("❌ Помилка з'єднання з базою.");
         }
-      } 
-      // Дія 2: Видалення коментаря
-      else if (passwordAction === 'delete' && commentToDelete) {
+      } else if (passwordAction === 'delete' && commentToDelete) {
         const { error } = await supabase.from('comments').delete().eq('id', commentToDelete);
         if (!error) {
           setComments(comments.filter(c => c.id !== commentToDelete));
@@ -130,8 +122,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
     } else {
       alert("❌ Невірний пароль! Доступ заборонено.");
     }
-    
-    // Закриваємо модалку та очищаємо стани
     setShowPasswordPrompt(false);
     setPasswordInput("");
     setPasswordAction(null);
@@ -171,7 +161,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
   return (
     <main className="min-h-screen bg-gray-50 font-sans flex flex-col relative">
       
-      {/* 🟢 ОНОВЛЕНЕ ВІКНО ПАРОЛЯ */}
       {showPasswordPrompt && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full transform transition-all">
@@ -244,9 +233,10 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
               {activity.location?.map((loc: string, index: number) => (
                 <span key={`loc-${index}`} className="bg-gray-100 text-gray-700 px-5 py-2 rounded-full font-bold text-base">📍 {locationsMap[loc] || loc}</span>
               ))}
+              {/* 🟢 ТЕПЕР ТЕГИ ПЕРЕКЛАДАЮТЬСЯ ЧЕРЕЗ dynamicTagsMap */}
               {activity.tags?.map((tagId: string, index: number) => (
                 <span key={`tag-${index}`} className="bg-indigo-50 text-indigo-700 border border-indigo-100 px-5 py-2 rounded-full font-bold text-base shadow-sm">
-                  #{tagsMap[tagId] || tagId}
+                  #{dynamicTagsMap[tagId] || tagId}
                 </span>
               ))}
               <span className="bg-purple-50 text-purple-700 border border-purple-100 px-5 py-2 rounded-full font-bold text-base flex items-center gap-1.5 shadow-sm">
@@ -369,7 +359,6 @@ export default function ActivityPage({ params }: { params: Promise<{ id: string 
                             {formattedDate}
                           </span>
                           
-                          {/* 🟢 КНОПКА ВИДАЛЕННЯ (видима при наведенні або на мобільних завжди) */}
                           <button 
                             onClick={() => { setCommentToDelete(comment.id); setPasswordAction('delete'); setShowPasswordPrompt(true); }}
                             className="text-gray-300 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50 xl:opacity-0 xl:group-hover:opacity-100"
